@@ -37,6 +37,7 @@ function migratePlayer(p: Player): Player {
   p.loanRequestedThisYear ??= false;
   p.eventPerformanceModifier ??= 0; p.eventDevelopmentModifier ??= 0; p.eventInjuryModifier ??= 0;
   p.characters ??= [];
+  p.personality ??= { professionalism: 50, loyalty: 50, humility: 50, teamFirst: 50, courage: 50, mediaComfort: 50 };
   p.academyClubId ??= undefined;
   p.academyFocus ??= undefined;
   p.professionalDebutAge ??= p.history.find((h) => h.age >= 16 && h.games > 0)?.age ?? null;
@@ -71,12 +72,29 @@ export function firstFreeSlot(): number | null {
   return null;
 }
 
-export interface HofEntry { name: string; country: string; position: string; games: number; goals: number; assists: number; trophies: number; ballons: number; legacyScore: number; legacyTier: string; age: number; }
-export function loadHof(): HofEntry[] { try { return JSON.parse(localStorage.getItem(HOF_KEY) || '[]'); } catch { return []; } }
+export interface HofEntry {
+  id: string;
+  name: string; country: string; position: string; games: number; goals: number; assists: number;
+  trophies: number; ballons: number; legacyScore: number; legacyTier: string; age: number;
+  player?: Player;
+}
+export function loadHof(): HofEntry[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HOF_KEY) || '[]') as HofEntry[];
+    return parsed.map((entry, index) => ({ ...entry, id: entry.id ?? `legacy-${index}-${entry.name}` }));
+  } catch { return []; }
+}
 export function addToHof(p: Player) {
   const list = loadHof();
-  const trophies = p.honors.club.reduce((s, h) => s + h.count, 0) + p.honors.national.reduce((s, h) => s + h.count, 0);
-  const ballons = p.honors.individual.filter((h) => h.label.includes('Ballon')).reduce((s, h) => s + h.count, 0);
-  list.push({ name: p.name, country: p.country, position: POSITION_MAP[p.position].name, games: p.totals.games, goals: p.totals.goals, assists: p.totals.assists, trophies, ballons, legacyScore: p.legacyScore ?? 0, legacyTier: p.legacyTier ?? 'Journeyman', age: p.age });
+  const trophies = p.honors.club.reduce((sum, h) => sum + h.count, 0) + p.honors.national.reduce((sum, h) => sum + h.count, 0);
+  const ballons = p.honors.individual.filter((h) => h.label.includes('Ballon')).reduce((sum, h) => sum + h.count, 0);
+  const snapshot: Player = JSON.parse(JSON.stringify(p));
+  const entry: HofEntry = {
+    id: p.id, name: p.name, country: p.country, position: POSITION_MAP[p.position].name,
+    games: p.totals.games, goals: p.totals.goals, assists: p.totals.assists, trophies, ballons,
+    legacyScore: p.legacyScore ?? 0, legacyTier: p.legacyTier ?? 'Journeyman', age: p.age, player: snapshot,
+  };
+  const existingIndex = list.findIndex((item) => item.id === p.id);
+  if (existingIndex >= 0) list[existingIndex] = entry; else list.push(entry);
   localStorage.setItem(HOF_KEY, JSON.stringify(list));
 }

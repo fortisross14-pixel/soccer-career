@@ -7,10 +7,14 @@ import { realisticName } from '../data/names';
 export const START_AGE = 10;
 
 export function createPlayer(name: string, country: string, position: PositionKey): Player {
-  // hidden talent ceiling — most players are ordinary, a rare few are special.
-  const r = Math.random();
-  const potentialCeiling = clamp(0.4 + r * r * 0.55 + (Math.random() < 0.05 ? 0.12 : 0), 0.4, 1);
-  const prospectStars = Math.max(1, Math.min(5, Math.round((potentialCeiling - 0.35) * 7))) as 1 | 2 | 3 | 4 | 5;
+  // Bell-shaped prospect distribution: most are 3-star, 2/4 are uncommon, 1/5 are rare.
+  const roll = Math.random();
+  const prospectStars: 1 | 2 | 3 | 4 | 5 = roll < 0.05 ? 1 : roll < 0.25 ? 2 : roll < 0.75 ? 3 : roll < 0.95 ? 4 : 5;
+  const ceilingRanges: Record<1 | 2 | 3 | 4 | 5, [number, number]> = {
+    1: [0.40, 0.54], 2: [0.52, 0.66], 3: [0.63, 0.79], 4: [0.76, 0.91], 5: [0.89, 1.00],
+  };
+  const [ceilingLow, ceilingHigh] = ceilingRanges[prospectStars];
+  const potentialCeiling = clamp(ceilingLow + Math.random() * (ceilingHigh - ceilingLow), 0.4, 1);
 
   const peakStart = 23 + randInt(-1, 3);
   const peakEnd = peakStart + randInt(4, 7);
@@ -89,10 +93,12 @@ export function createPlayer(name: string, country: string, position: PositionKe
     agentType: 'family',
     loanRequestedThisYear: false,
     eventPerformanceModifier: 0, eventDevelopmentModifier: 0, eventInjuryModifier: 0,
+    personality: { professionalism: 50, loyalty: 50, humility: 50, teamFirst: 50, courage: 50, mediaComfort: 50 },
     characters: [
       { name: realisticName(country, `mentor-${name}`), role: 'mentor', relationship: 68, overall: 76, clubName: `${country} Academy` },
       { name: realisticName(country, `captain-${name}`), role: 'captain', relationship: 52, overall: 80, clubName: `${country} Academy` },
       { name: realisticName(country, `prospect-${name}`), role: 'prospect', relationship: 45, overall: 34, clubName: `${country} Academy` },
+      { name: realisticName(country, `friend-${name}`), role: 'friend', relationship: 60, overall: 36, clubName: `${country} Academy` },
     ],
     retired: false,
   };

@@ -135,7 +135,13 @@ export interface SeasonEventChoice {
   id: string;
   label: string;
   description: string;
-  effects: { morale?: number; fitness?: number; managerTrust?: number; reputation?: number; performance?: number; development?: number; injuryRisk?: number; decisionScore?: number };
+  effects: {
+    morale?: number; fitness?: number; managerTrust?: number; reputation?: number;
+    performance?: number; development?: number; injuryRisk?: number; decisionScore?: number;
+    money?: number; skillChanges?: Partial<Record<SkillKey, number>>;
+    relationshipRole?: CareerCharacter['role']; relationship?: number;
+    personality?: Partial<Record<keyof PlayerPersonality, number>>;
+  };
 }
 export interface SeasonEvent {
   id: string;
@@ -145,6 +151,15 @@ export interface SeasonEvent {
   choices: SeasonEventChoice[];
 }
 export interface CareerCharacter { name: string; role: 'mentor' | 'captain' | 'prospect' | 'friend'; relationship: number; overall: number; clubName: string; }
+
+export interface PlayerPersonality {
+  professionalism: number;
+  loyalty: number;
+  humility: number;
+  teamFirst: number;
+  courage: number;
+  mediaComfort: number;
+}
 
 export interface Honor {
   label: string;
@@ -282,6 +297,7 @@ export interface Player {
   eventDevelopmentModifier?: number;
   eventInjuryModifier?: number;
   characters?: CareerCharacter[];
+  personality?: PlayerPersonality;
 }
 
 export interface SaveMeta {
