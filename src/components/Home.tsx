@@ -132,7 +132,7 @@ function CreateCareer({ onClose, onStart }: { onClose: () => void; onStart: (n: 
   return (
     <Modal onClose={onClose}>
       <h2 className="font-display text-2xl mb-1">Create your player</h2>
-      <p className="text-zinc-500 text-sm mb-6">You'll start at 15 in the academy. Everything after is up to you.</p>
+      <p className="text-zinc-500 text-sm mb-6">You'll enter the academy at 10. Your choices will shape the player who emerges.</p>
 
       <label className="text-xs text-zinc-400">Name</label>
       <input

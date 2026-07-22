@@ -111,3 +111,12 @@ This build adds:
 - light, balanced, and intense training plans
 - persistent morale, fitness, and manager trust affecting role, form, injuries, and development
 - automatic migration defaults for existing saves
+
+## Career Story Update
+
+- Careers now begin at age 10 in the academy.
+- Every player receives an original 1–5 star prospect assessment.
+- Year-end recaps explain coach chemistry, morale, workload, injuries, objectives and development.
+- A persistent career rival and lightweight football-world headlines create continuity beyond the player's club.
+- Retirement now produces a contextual career verdict comparing original promise with peak level, trophies, injuries and decisions.
+- Existing saves are migrated automatically with safe defaults for the new fields.

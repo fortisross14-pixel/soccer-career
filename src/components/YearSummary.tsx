@@ -6,10 +6,7 @@ import { computeLegacy } from '../engines/legacy';
 
 export default function YearSummary({ summary, player, onClose }: { summary: YS; player: Player; onClose: () => void }) {
   const r = summary.seasonRecord;
-  const deltas = Object.entries(summary.skillDeltas)
-    .filter(([, v]) => Math.abs(v as number) >= 1)
-    .sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number))
-    .slice(0, 6);
+  const deltas = Object.entries(summary.skillDeltas).filter(([, v]) => Math.abs(v as number) >= 1).sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number)).slice(0, 6);
   const ovrChange = summary.overallAfter - summary.overallBefore;
   const honors = [...r.clubHonors, ...r.individualHonors, ...r.nationalHonors];
 
@@ -17,21 +14,23 @@ export default function YearSummary({ summary, player, onClose }: { summary: YS;
     const legacy = computeLegacy(player);
     return (
       <Modal onClose={onClose} wide>
-        <div className="text-center">
-          <div className="eyebrow">Career complete</div>
-          <div className="font-display text-4xl mt-2 mb-1">{player.name}</div>
-          <div className="text-zinc-400 mb-6">Retired at {player.age}</div>
-          <div className="inline-block rounded-2xl border border-amber-400/30 bg-amber-400/10 px-8 py-5 mb-6">
-            <div className="text-amber-300 font-display text-3xl">{legacy.tier}</div>
-            <div className="text-zinc-400 text-sm mt-1">{legacy.blurb}</div>
+        <div className="career-finale">
+          <div className="eyebrow">Final whistle</div>
+          <div className="font-display text-5xl mt-2">{player.name}</div>
+          <div className="prospect-stars mt-3">{'★'.repeat(player.prospectStars ?? 3)}<span>{5 - (player.prospectStars ?? 3) > 0 ? '☆'.repeat(5 - (player.prospectStars ?? 3)) : ''}</span></div>
+          <p className="story-lead mt-5">{summary.careerVerdict}</p>
+          <div className="legacy-banner mt-6">
+            <div><span>Legacy</span><strong>{legacy.tier}</strong></div>
+            <div className="legacy-score">{legacy.score}</div>
           </div>
-          <div className="grid grid-cols-4 gap-3 mb-6 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 my-6">
+            <Fact label="Peak OVR" value={player.peakOverall ?? summary.overallAfter} accent />
             <Fact label="Apps" value={player.totals.games} />
             <Fact label="Goals" value={player.totals.goals} />
             <Fact label="Assists" value={player.totals.assists} />
-            <Fact label="Legacy" value={legacy.score} />
+            <Fact label="Injury years" value={player.injurySeasons ?? 0} />
           </div>
-          <button className="btn-primary w-full py-3.5" onClick={onClose}>Enter the Hall of Fame</button>
+          <button className="btn-primary w-full py-4" onClick={onClose}>Enter the Hall of Fame</button>
         </div>
       </Modal>
     );
@@ -39,74 +38,51 @@ export default function YearSummary({ summary, player, onClose }: { summary: YS;
 
   return (
     <Modal onClose={onClose} wide>
-      <div className="flex items-baseline justify-between mb-1">
-        <div className="font-display text-2xl">Season recap</div>
-        <div className="text-zinc-500 text-sm">Age {r.age} · {r.clubName}</div>
+      <div className="season-cover">
+        <div>
+          <div className="eyebrow">Season {r.season + 1} complete</div>
+          <div className="font-display text-4xl mt-1">Age {r.age}: {r.clubName}</div>
+          <div className="text-zinc-400 mt-1">{summary.event}</div>
+        </div>
+        <div className="season-grade">{r.rating >= 7.8 ? 'A+' : r.rating >= 7.3 ? 'A' : r.rating >= 6.8 ? 'B' : r.rating >= 6.3 ? 'C' : 'D'}</div>
       </div>
-      <div className="text-sm text-zinc-400 mb-5">{summary.event}</div>
 
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-5">
         <Fact label="Apps" value={r.games} />
         <Fact label="Goals" value={r.goals} accent />
         <Fact label="Assists" value={r.assists} accent />
         <Fact label="Rating" value={r.rating.toFixed(1)} accent />
       </div>
 
-      <div className="flex items-center gap-3 mb-5 bg-zinc-900/60 rounded-2xl px-4 py-3">
-        <span className="text-sm text-zinc-400">Overall</span>
-        <span className="stat-num text-xl">{summary.overallBefore}</span>
-        <span className="text-zinc-600">→</span>
-        <span className="stat-num text-xl text-pitch-400">{summary.overallAfter}</span>
-        {ovrChange !== 0 && (
-          <span className={`text-sm ${ovrChange > 0 ? 'text-pitch-400' : 'text-red-400'}`}>
-            ({ovrChange > 0 ? '+' : ''}{ovrChange})
-          </span>
-        )}
+      <section className="story-panel mb-5">
+        <div className="eyebrow mb-3">The story of the year</div>
+        <div className="space-y-3">
+          {summary.narrative.map((line, i) => <p key={i} className={i === 0 ? 'story-lead' : 'story-line'}>{line}</p>)}
+        </div>
+      </section>
+
+      <div className="grid md:grid-cols-2 gap-4 mb-5">
+        <section className="summary-module">
+          <div className="eyebrow mb-3">Development</div>
+          <div className="ovr-track"><span>OVR</span><strong>{summary.overallBefore}</strong><i>→</i><strong className="text-pitch-300">{summary.overallAfter}</strong><em>{ovrChange >= 0 ? '+' : ''}{ovrChange}</em></div>
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            {deltas.map(([k, v]) => <div key={k} className="attribute-delta"><span>{SKILL_MAP[k as SkillKey].label}</span><strong className={(v as number) > 0 ? 'text-pitch-300' : 'text-red-400'}>{(v as number) > 0 ? '+' : ''}{v as number}</strong></div>)}
+          </div>
+        </section>
+        <section className="summary-module">
+          <div className="eyebrow mb-3">Around the football world</div>
+          <div className="space-y-3">
+            {summary.worldHeadlines.length ? summary.worldHeadlines.map((h, i) => <div className="headline" key={i}><span>●</span>{h}</div>) : <div className="text-zinc-500 text-sm">A relatively quiet year beyond your club.</div>}
+          </div>
+        </section>
       </div>
 
-      {honors.length > 0 && (
-        <div className="mb-5">
-          <div className="eyebrow mb-2">Honors this season</div>
-          <div className="flex flex-wrap gap-2">
-            {honors.map((h, i) => (
-              <span key={i} className="pill border-amber-400/30 bg-amber-400/10 text-amber-300">🏆 {h}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {deltas.length > 0 && (
-        <div className="mb-6">
-          <div className="eyebrow mb-2">Biggest attribute changes</div>
-          <div className="grid grid-cols-2 gap-2">
-            {deltas.map(([k, v]) => (
-              <div key={k} className="flex justify-between bg-zinc-900/60 rounded-xl px-3 py-2 text-sm">
-                <span className="text-zinc-300">{SKILL_MAP[k as SkillKey].label}</span>
-                <span className={(v as number) > 0 ? 'text-pitch-400' : 'text-red-400'}>
-                  {(v as number) > 0 ? '+' : ''}{v as number}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {summary.logs.length > 0 && (
-        <div className="mb-6 space-y-1.5">
-          {summary.logs.map((l, i) => <div key={i} className="text-sm text-zinc-300">{l}</div>)}
-        </div>
-      )}
-
-      <button className="btn-primary w-full py-3.5" onClick={onClose}>Continue</button>
+      {honors.length > 0 && <div className="honor-ribbon mb-5">{honors.map((h, i) => <span key={i}>🏆 {h}</span>)}</div>}
+      <button className="btn-primary w-full py-4" onClick={onClose}>Begin the next chapter</button>
     </Modal>
   );
 }
 
 function Fact({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
-  return (
-    <div className="bg-zinc-900/60 rounded-2xl px-3 py-3 text-center">
-      <div className={`stat-num text-2xl ${accent ? 'text-pitch-400' : ''}`}>{value}</div>
-      <div className="text-[11px] text-zinc-500">{label}</div>
-    </div>
-  );
+  return <div className="fact-tile"><div className={`stat-num text-2xl ${accent ? 'text-pitch-300' : ''}`}>{value}</div><div>{label}</div></div>;
 }

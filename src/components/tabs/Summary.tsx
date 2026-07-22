@@ -23,6 +23,7 @@ export default function Summary({ player }: { player: Player }) {
             <div className="eyebrow">Current status</div>
             <div className="font-display text-3xl tracking-tight mt-1">{player.name}</div>
             <div className="text-zinc-400 text-sm">{pos.name} · {player.country}</div>
+            <div className="mt-3 text-amber-300 tracking-[.15em]">{'★'.repeat(player.prospectStars ?? 3)}<span className="text-zinc-700">{'☆'.repeat(5 - (player.prospectStars ?? 3))}</span><span className="ml-2 text-[10px] tracking-normal uppercase text-zinc-500">Original prospect rating</span></div>
           </div>
           <div className="text-right">
             <OverallBadge value={ovr} />
@@ -39,7 +40,8 @@ export default function Summary({ player }: { player: Player }) {
         )}
 
         <div className="space-y-2.5 text-sm mt-5">
-          <Row label="Club" value={club.name} />
+          <Row label={player.age < 16 ? 'Academy' : 'Club'} value={club.name} />
+          {player.rivalName && <Row label="Career rival" value={`${player.rivalName} · OVR ${player.rivalOverall ?? '—'}`} />}
           <Row label="Competition" value={club.tier === 'Youth' ? 'Youth League' : `${country.leagueName}${club.division === 2 ? ' 2' : ''}`} />
           <Row label="Squad role" value={<RoleBadge role={player.role} />} />
           <Row label="Market value" value={player.marketValue > 0 ? fmtMoney(player.marketValue) : '—'} />

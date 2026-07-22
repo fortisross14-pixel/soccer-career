@@ -11,6 +11,7 @@ import { decideAwards } from '../engines/awards';
 import { simulateNational } from '../engines/national';
 import { generateOffers, marketValue, wageFor } from '../engines/transfers';
 import { computeLegacy } from '../engines/legacy';
+import { careerVerdict, seasonNarrative, worldHeadlines } from '../engines/narrative';
 
 export const MAX_AGE = 40;
 
@@ -43,6 +44,9 @@ export interface YearSummary {
   overallAfter: number;
   skillDeltas: Partial<Record<SkillKey, number>>;
   retired: boolean;
+  narrative: string[];
+  worldHeadlines: string[];
+  careerVerdict?: string;
 }
 
 export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { player: Player; summary: YearSummary } {
@@ -118,6 +122,8 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
   p.managerTrust = clamp((p.managerTrust ?? 55) + performanceTrust + (season.injured ? -2 : 0), 0, 100);
   const intensity = p.trainingIntensity ?? 'balanced';
   p.fitness = clamp((p.fitness ?? 80) + (intensity === 'light' ? 8 : intensity === 'intense' ? -10 : 1) + (season.injured ? -12 : 0), 20, 100);
+  if (season.injured) p.injurySeasons = (p.injurySeasons ?? 0) + 1;
+  if (intensity === 'intense') p.intenseTrainingYears = (p.intenseTrainingYears ?? 0) + 1;
 
   let income = 0;
   if (p.contract) income += p.contract.wage;
@@ -145,6 +151,8 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     clubHonors: season.clubHonors,
     individualHonors: [...awards.individualHonors, ...nat.individualHonors],
     nationalHonors: nat.nationalHonors,
+    narrative: [],
+    worldHeadlines: [],
   };
   p.history.push(seasonRecord);
 
@@ -209,6 +217,15 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     yearLogs.push(`❌ Season objective missed: ${objectiveLabel(objective)}.`);
   }
 
+  const narrative = seasonNarrative(p, season, overallBefore, overallAfter, objectiveMet);
+  const headlines = worldHeadlines(p, seasonRecord);
+  seasonRecord.narrative = narrative;
+  seasonRecord.worldHeadlines = headlines;
+  p.worldHeadlines = headlines;
+  narrative.forEach((line) => log(p, 'system', line));
+  headlines.forEach((line) => log(p, 'system', `WORLD: ${line}`));
+  p.peakOverall = Math.max(p.peakOverall ?? 0, overallBefore, overallAfter);
+
   // Continental qualification is earned for the next season rather than permanently fixed.
   if (club.tier !== 'Youth' && club.division === 1) {
     p.clubContinental = season.leagueFinish <= 4 ? 'CL' : season.leagueFinish <= 6 ? 'EL' : 'none';
@@ -227,7 +244,8 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     player: p,
     summary: {
       seasonRecord, event: eventText, logs: yearLogs,
-      overallBefore, overallAfter, skillDeltas: prog.deltas, retired,
+      overallBefore, overallAfter, skillDeltas: prog.deltas, retired, narrative, worldHeadlines: headlines,
+      careerVerdict: retired ? careerVerdict(p) : undefined,
     },
   };
 }
@@ -264,6 +282,8 @@ export function signOffer(p: Player, offerIndex: number): Player {
   next.offers = [];
   next.searchedThisYear = true;
   next.clubContinental = offer.continental;
+  const currentRating = currentClub(p).rating;
+  next.careerDecisionScore = (next.careerDecisionScore ?? 0) + (offer.clubRating >= currentRating - 2 ? 2 : -1) + (offer.role === 'starter' || offer.role === 'star' ? 1 : -1);
   log(next, 'transfer', `Signed for ${offer.clubName} (${offer.role}, ${offer.years}yr).`);
   return next;
 }
@@ -326,6 +346,7 @@ export function requestTransfer(p: Player): { player: Player; count: number } {
   next.offers = [...map.values()].sort((a, b) => b.clubRating - a.clubRating);
   next.transferRequestedThisYear = true;
   next.managerTrust = clamp((next.managerTrust ?? 55) - 12, 0, 100);
+  next.careerDecisionScore = (next.careerDecisionScore ?? 0) - 1;
   next.morale = clamp((next.morale ?? 70) + 3, 0, 100);
   log(next, 'transfer', `Submitted a transfer request — ${found.length + domestic.length} clubs responded.`);
   return { player: next, count: found.length + domestic.length };

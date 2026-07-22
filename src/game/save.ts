@@ -19,6 +19,14 @@ function migratePlayer(p: Player): Player {
   p.fitness ??= 82;
   p.managerTrust ??= 55;
   p.clubContinental ??= p.contract ? currentClub(p).continental : 'none';
+  p.prospectStars ??= Math.max(1, Math.min(5, Math.round((p.potentialCeiling - 0.35) * 7))) as 1 | 2 | 3 | 4 | 5;
+  p.peakOverall ??= Math.max(0, ...p.history.map((h) => h.overall));
+  p.injurySeasons ??= p.log.filter((e) => e.kind === 'injury').length;
+  p.intenseTrainingYears ??= 0;
+  p.careerDecisionScore ??= 0;
+  p.rivalName ??= 'Alex Vega';
+  p.rivalOverall ??= 45;
+  p.worldHeadlines ??= [];
   p.offers = (p.offers ?? []).map((o) => ({ ...o, source: o.source ?? (o.international ? 'international-scout' : 'automatic') }));
   return p;
 }

@@ -32,3 +32,41 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; }
 }
+
+/* 2.0 visual system */
+body {
+  background:
+    radial-gradient(900px 500px at 18% -5%, rgba(34,197,94,.16), transparent 65%),
+    radial-gradient(700px 500px at 92% 8%, rgba(59,130,246,.09), transparent 65%),
+    linear-gradient(180deg,#07100b 0%,#09090b 42%,#09090b 100%);
+}
+.card { box-shadow: 0 24px 70px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.025); }
+.fact-tile { @apply rounded-2xl border border-white/5 bg-black/25 px-4 py-4 text-center; }
+.fact-tile > div:last-child { @apply text-[11px] uppercase tracking-[.14em] text-zinc-500 mt-1; }
+.season-cover { @apply relative overflow-hidden rounded-3xl border border-pitch-500/20 bg-gradient-to-br from-pitch-950/90 via-zinc-950 to-zinc-900 p-6 flex items-start justify-between gap-4; }
+.season-cover:after { content:''; position:absolute; width:240px; height:240px; border:1px solid rgba(74,222,128,.16); border-radius:50%; right:-80px; top:-100px; box-shadow:0 0 0 28px rgba(74,222,128,.025),0 0 0 56px rgba(74,222,128,.018); }
+.season-grade { @apply relative z-10 font-display text-5xl text-pitch-300 rounded-2xl bg-black/30 border border-pitch-400/20 px-4 py-2; }
+.story-panel { @apply rounded-3xl border border-white/5 bg-gradient-to-br from-zinc-900/90 to-zinc-950 p-6; }
+.story-lead { @apply text-lg md:text-xl leading-relaxed text-zinc-100 font-medium; }
+.story-line { @apply text-sm leading-relaxed text-zinc-400 border-l-2 border-pitch-600/40 pl-4; }
+.summary-module { @apply rounded-2xl border border-zinc-800/80 bg-zinc-900/45 p-5; }
+.ovr-track { @apply flex items-center gap-3 rounded-xl bg-black/25 px-4 py-3; }
+.ovr-track span { @apply text-xs text-zinc-500; }
+.ovr-track strong { @apply stat-num text-xl; }
+.ovr-track i { @apply text-zinc-600 not-italic; }
+.ovr-track em { @apply ml-auto text-xs text-pitch-400 not-italic; }
+.attribute-delta { @apply flex justify-between rounded-xl bg-black/20 px-3 py-2 text-xs; }
+.headline { @apply flex gap-3 text-sm text-zinc-300 leading-relaxed; }
+.headline span { @apply text-pitch-500 text-[8px] mt-1.5; }
+.honor-ribbon { @apply flex flex-wrap gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4; }
+.honor-ribbon span { @apply text-xs text-amber-300; }
+.career-finale { @apply text-center py-3; }
+.prospect-stars { @apply text-2xl tracking-[.2em] text-amber-300; }
+.prospect-stars span { @apply text-zinc-700; }
+.legacy-banner { @apply mx-auto max-w-xl flex items-center justify-between rounded-3xl border border-amber-400/25 bg-gradient-to-r from-amber-400/10 to-transparent px-6 py-5 text-left; }
+.legacy-banner span { @apply block text-[10px] tracking-[.2em] uppercase text-amber-400; }
+.legacy-banner strong { @apply font-display text-3xl; }
+.legacy-score { @apply stat-num text-4xl text-amber-300; }
+
+@keyframes fade-up { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
+.animate-fade-up { animation:fade-up .35s ease both; }

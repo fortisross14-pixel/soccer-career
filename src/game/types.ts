@@ -122,6 +122,8 @@ export interface SeasonRecord {
   clubHonors: string[];
   individualHonors: string[];
   nationalHonors: string[];
+  narrative?: string[];
+  worldHeadlines?: string[];
 }
 
 export interface Honor {
@@ -202,6 +204,14 @@ export interface Player {
   retired: boolean;
   legacyScore?: number;
   legacyTier?: string;
+  prospectStars?: 1 | 2 | 3 | 4 | 5;
+  peakOverall?: number;
+  injurySeasons?: number;
+  intenseTrainingYears?: number;
+  careerDecisionScore?: number;
+  rivalName?: string;
+  rivalOverall?: number;
+  worldHeadlines?: string[];
 }
 
 export interface SaveMeta {
