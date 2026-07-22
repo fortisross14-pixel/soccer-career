@@ -56,6 +56,17 @@ export function createPlayer(name: string, country: string, position: PositionKe
     offers: [],
     trainedThisYear: false,
     searchedThisYear: false,
+    searchedDomesticThisYear: false,
+    searchedInternationalThisYear: false,
+    sponsoredThisYear: false,
+    renegotiatedThisYear: false,
+    transferRequestedThisYear: false,
+    trainingIntensity: 'balanced',
+    seasonObjective: 'develop',
+    morale: 72,
+    fitness: 82,
+    managerTrust: 55,
+    clubContinental: 'none',
     retired: false,
   };
 }

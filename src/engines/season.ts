@@ -69,7 +69,14 @@ const GAMES_BY_ROLE: Record<SquadRole, [number, number]> = {
 export function simulateSeason(p: Player, club: ClubDef, overall: number): SeasonOutput {
   const country = getCountry(club.country);
   const pos = POSITION_MAP[p.position];
-  const role = roleFor(overall, club);
+  const trust = p.managerTrust ?? 55;
+  const morale = p.morale ?? 70;
+  const fitness = p.fitness ?? 80;
+  let role = roleFor(overall, club);
+  if (trust >= 78 && role === 'rotation') role = 'starter';
+  if (trust >= 88 && role === 'starter') role = 'star';
+  if (trust < 30 && role === 'starter') role = 'rotation';
+  if (trust < 20 && role === 'rotation') role = 'fringe';
   const logs: string[] = [];
   const clubHonors: string[] = [];
 
@@ -77,7 +84,8 @@ export function simulateSeason(p: Player, club: ClubDef, overall: number): Seaso
   const [lo, hi] = GAMES_BY_ROLE[role];
   let games = randInt(lo, hi);
   let injured = false;
-  const injuryRisk = clamp(0.06 + (p.age > 30 ? (p.age - 30) * 0.015 : 0) + (1 - p.skills.stamina / 130), 0.04, 0.35);
+  const intensityRisk = p.trainingIntensity === 'intense' ? 0.07 : p.trainingIntensity === 'light' ? -0.025 : 0;
+  const injuryRisk = clamp(0.06 + intensityRisk + (100 - fitness) / 500 + (p.age > 30 ? (p.age - 30) * 0.015 : 0) + (1 - p.skills.stamina / 130), 0.03, 0.45);
   if (chance(injuryRisk)) {
     injured = true;
     const lost = randInt(4, Math.min(games - 2, 22));
@@ -88,7 +96,7 @@ export function simulateSeason(p: Player, club: ClubDef, overall: number): Seaso
   const minutesFactor = clamp(games / 42, 0.1, 1);
 
   // --- goals & assists ---
-  const form = clamp(0.78 + noise() * 0.4, 0.4, 1.4);
+  const form = clamp(0.78 + noise() * 0.4 + (morale - 60) / 220 + (fitness - 70) / 300, 0.4, 1.5);
   const roleScoring = role === 'star' ? 1.12 : role === 'starter' ? 1.0 : 0.86;
   const gThreat = clamp(attackIndex(p) / 68, 0.2, 2.0);
   const cThreat = clamp(creationIndex(p) / 68, 0.2, 2.0);

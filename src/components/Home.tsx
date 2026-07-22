@@ -68,8 +68,8 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <button className="btn-primary w-full mt-6 py-3.5" onClick={() => setCreating(true)}>
-            + New career
+          <button disabled={slots.every(Boolean)} className="btn-primary w-full mt-6 py-3.5 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => setCreating(true)}>
+            {slots.every(Boolean) ? 'Delete a save to start a new career' : '+ New career'}
           </button>
         </section>
 

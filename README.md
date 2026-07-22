@@ -97,3 +97,17 @@ huge assist totals; center-backs score from set pieces — archetypes hold.
 Pushing to `main` triggers `.github/workflows/deploy.yml` (GitHub Pages). Set the repo
 name to `soccer-career` or update `base` in `vite.config.ts` to match. Enable Pages ->
 Source: GitHub Actions.
+
+## Gameplay update: Phase 1 + Phase 2
+
+This build adds:
+- safe save-slot handling (new careers no longer silently overwrite slot 1)
+- separate domestic and international scouting limits
+- labeled offer sources and automatic foreign interest for reputable players
+- one sponsorship and one contract negotiation attempt per season
+- transfer requests with manager-trust consequences
+- dynamic continental qualification based on league finish
+- season objectives with success/failure consequences
+- light, balanced, and intense training plans
+- persistent morale, fitness, and manager trust affecting role, form, injuries, and development
+- automatic migration defaults for existing saves

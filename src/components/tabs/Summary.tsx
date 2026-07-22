@@ -44,6 +44,9 @@ export default function Summary({ player }: { player: Player }) {
           <Row label="Squad role" value={<RoleBadge role={player.role} />} />
           <Row label="Market value" value={player.marketValue > 0 ? fmtMoney(player.marketValue) : '—'} />
           <Row label="Reputation" value={`${Math.round(player.reputation)}/100`} />
+          <Row label="Morale / fitness" value={`${Math.round(player.morale ?? 70)} / ${Math.round(player.fitness ?? 80)}`} />
+          <Row label="Manager trust" value={`${Math.round(player.managerTrust ?? 55)}/100`} />
+          <Row label="Next season in Europe" value={(player.clubContinental ?? club.continental) === 'CL' ? 'Champions' : (player.clubContinental ?? club.continental) === 'EL' ? 'Europa' : 'None'} />
         </div>
 
         <div className="mt-4 pt-4 border-t border-zinc-800 text-sm flex justify-between">

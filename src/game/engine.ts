@@ -1,4 +1,4 @@
-import type { Honor, Player, SkillKey, SeasonRecord } from './types';
+import type { Honor, Player, SkillKey, SeasonRecord, SeasonObjective, TrainingIntensity } from './types';
 import { EVENTS } from '../data/events';
 import { TRAITS } from '../data/traits';
 import { POSITION_MAP } from '../data/positions';
@@ -79,7 +79,8 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
 
   // overall the player will play this season at
   const seasonOverall = playerOverall(p);
-  const club = currentClub(p);
+  const baseClub = currentClub(p);
+  const club = { ...baseClub, continental: p.clubContinental ?? baseClub.continental };
 
   // ---- 3. club season ----
   const season = simulateSeason(p, club, seasonOverall);
@@ -110,6 +111,13 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
   p.national.goals += nat.goals;
 
   p.reputation = clamp(p.reputation + awards.reputationGain, 5, 100);
+
+  // Persistent player-state consequences. Performance changes trust; planning changes fitness.
+  const objective = p.seasonObjective ?? 'develop';
+  const performanceTrust = season.rating >= 7.4 ? 7 : season.rating >= 6.8 ? 2 : -6;
+  p.managerTrust = clamp((p.managerTrust ?? 55) + performanceTrust + (season.injured ? -2 : 0), 0, 100);
+  const intensity = p.trainingIntensity ?? 'balanced';
+  p.fitness = clamp((p.fitness ?? 80) + (intensity === 'light' ? 8 : intensity === 'intense' ? -10 : 1) + (season.injured ? -12 : 0), 20, 100);
 
   let income = 0;
   if (p.contract) income += p.contract.wage;
@@ -145,6 +153,7 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     trainedKeys: trainingFocus ?? [],
     clubRating: club.rating,
     minutesFactor: season.minutesFactor,
+    intensity: p.trainingIntensity ?? 'balanced',
   });
   roundSkills(p);
 
@@ -162,14 +171,48 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
   p.season += 1;
   p.trainedThisYear = false;
   p.searchedThisYear = false;
+  p.searchedDomesticThisYear = false;
+  p.searchedInternationalThisYear = false;
+  p.sponsoredThisYear = false;
+  p.renegotiatedThisYear = false;
+  p.transferRequestedThisYear = false;
 
   const overallAfter = playerOverall(p);
   p.marketValue = marketValue(overallAfter, p.age, p.reputation);
   p.national.status = nat.status;
 
-  // ---- 11. offseason offers (clubs approach automatically) ----
-  const scope = p.age < 16 ? 'youth' : 'domestic';
-  p.offers = generateOffers(p, overallAfter, scope);
+  // ---- 11. offseason offers (reputation and exposure can now attract foreign clubs) ----
+  if (p.age < 16) {
+    p.offers = generateOffers(p, overallAfter, 'youth', 'automatic');
+  } else {
+    const domestic = generateOffers(p, overallAfter, 'domestic', 'automatic');
+    const internationalChance = clamp((p.reputation - 35) / 70 + (nat.caps > 0 ? 0.16 : 0) + (season.clubHonors.length > 0 ? 0.1 : 0), 0, 0.85);
+    const foreign = chance(internationalChance) ? generateOffers(p, overallAfter, 'international', 'automatic') : [];
+    const merged = new Map([...domestic, ...foreign].map((o) => [o.clubId, o]));
+    p.offers = [...merged.values()].sort((a, b) => b.clubRating - a.clubRating);
+  }
+
+  const objectiveMet =
+    objective === 'develop' ? overallAfter > overallBefore :
+    objective === 'play' ? season.games >= 30 :
+    objective === 'perform' ? season.rating >= 7.2 :
+    objective === 'trophy' ? season.clubHonors.length > 0 :
+    objective === 'international' ? nat.caps > 0 :
+    p.offers.some((o) => o.clubRating > club.rating || o.international);
+  if (objectiveMet) {
+    p.morale = clamp((p.morale ?? 70) + 8, 0, 100);
+    p.managerTrust = clamp((p.managerTrust ?? 55) + 5, 0, 100);
+    p.reputation = clamp(p.reputation + 2, 5, 100);
+    yearLogs.push(`✅ Season objective achieved: ${objectiveLabel(objective)}.`);
+  } else {
+    p.morale = clamp((p.morale ?? 70) - 7, 0, 100);
+    yearLogs.push(`❌ Season objective missed: ${objectiveLabel(objective)}.`);
+  }
+
+  // Continental qualification is earned for the next season rather than permanently fixed.
+  if (club.tier !== 'Youth' && club.division === 1) {
+    p.clubContinental = season.leagueFinish <= 4 ? 'CL' : season.leagueFinish <= 6 ? 'EL' : 'none';
+  } else p.clubContinental = 'none';
 
   // milestone logs
   if (p.totals.goals >= 100 && p.totals.goals - season.goals < 100) yearLogs.push('🎯 Reached 100 career goals!');
@@ -187,6 +230,18 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
       overallBefore, overallAfter, skillDeltas: prog.deltas, retired,
     },
   };
+}
+
+function objectiveLabel(o: SeasonObjective): string {
+  return ({ develop: 'Improve your overall', play: 'Play 30 matches', perform: 'Average 7.2+', trophy: 'Win a trophy', international: 'Earn an international cap', transfer: 'Attract a better move' } as Record<SeasonObjective, string>)[o];
+}
+
+export function setSeasonPlan(p: Player, objective: SeasonObjective, intensity: TrainingIntensity): Player {
+  const next = clone(p);
+  next.seasonObjective = objective;
+  next.trainingIntensity = intensity;
+  log(next, 'system', `Season plan set: ${objectiveLabel(objective)} · ${intensity} training.`);
+  return next;
 }
 
 export function finalizeRetirement(p: Player) {
@@ -208,29 +263,37 @@ export function signOffer(p: Player, offerIndex: number): Player {
   next.role = offer.role;
   next.offers = [];
   next.searchedThisYear = true;
+  next.clubContinental = offer.continental;
   log(next, 'transfer', `Signed for ${offer.clubName} (${offer.role}, ${offer.years}yr).`);
   return next;
 }
 
 export function searchForClubs(p: Player, scope: 'domestic' | 'international'): Player {
   const next = clone(p);
+  if (scope === 'domestic' && next.searchedDomesticThisYear) return next;
+  if (scope === 'international' && next.searchedInternationalThisYear) return next;
   const ovr = playerOverall(next);
-  const found = generateOffers(next, ovr, scope);
-  // merge, de-dupe by club
+  const found = generateOffers(next, ovr, scope, scope === 'international' ? 'international-scout' : 'domestic-scout');
+  // Keep unsolicited offers, but replace earlier results from the same search type.
+  next.offers = next.offers.filter((o) => o.source !== (scope === 'international' ? 'international-scout' : 'domestic-scout'));
   const map = new Map(next.offers.map((o) => [o.clubId, o]));
   found.forEach((o) => map.set(o.clubId, o));
   next.offers = [...map.values()].sort((a, b) => b.clubRating - a.clubRating);
   next.searchedThisYear = true;
+  if (scope === 'domestic') next.searchedDomesticThisYear = true;
+  else next.searchedInternationalThisYear = true;
   log(next, 'system', `Scouted ${scope === 'international' ? 'international' : 'domestic'} clubs — ${found.length} showed interest.`);
   return next;
 }
 
 export function signSponsorship(p: Player): { player: Player; amount: number } {
   const next = clone(p);
+  if (next.sponsoredThisYear) return { player: next, amount: 0 };
   const ovr = playerOverall(next);
   const club = currentClub(next);
   const amount = Math.round((150_000 + ovr * ovr * 400 + next.reputation * 20_000) * (0.6 + club.prestige / 120));
   next.money += amount;
+  next.sponsoredThisYear = true;
   log(next, 'system', `Signed a sponsorship deal worth ${amount.toLocaleString()}.`);
   return { player: next, amount };
 }
@@ -238,6 +301,8 @@ export function signSponsorship(p: Player): { player: Player; amount: number } {
 export function requestContract(p: Player): { player: Player; ok: boolean; msg: string } {
   const next = clone(p);
   if (!next.contract) return { player: next, ok: false, msg: "You're a free agent — find a club first." };
+  if (next.renegotiatedThisYear) return { player: next, ok: false, msg: 'You already approached the club this season.' };
+  next.renegotiatedThisYear = true;
   const club = CLUB_MAP[next.contract.clubId];
   const ovr = playerOverall(next);
   const deserved = wageFor(club, next.role, ovr);
@@ -247,5 +312,21 @@ export function requestContract(p: Player): { player: Player; ok: boolean; msg: 
     log(next, 'transfer', `Renegotiated terms with ${club.name}: ${deserved.toLocaleString()}/yr.`);
     return { player: next, ok: true, msg: `New deal agreed: ${deserved.toLocaleString()}/yr.` };
   }
-  return { player: next, ok: false, msg: `${club.name} won't improve your terms right now.` };
+  next.managerTrust = clamp((next.managerTrust ?? 55) - 4, 0, 100);
+  next.morale = clamp((next.morale ?? 70) - 2, 0, 100);
+  return { player: next, ok: false, msg: `${club.name} won't improve your terms right now. Manager trust fell slightly.` };
+}
+
+export function requestTransfer(p: Player): { player: Player; count: number } {
+  const next = clone(p);
+  if (next.transferRequestedThisYear || next.age < 17) return { player: next, count: 0 };
+  const found = generateOffers(next, playerOverall(next), 'international', 'transfer-request');
+  const domestic = generateOffers(next, playerOverall(next), 'domestic', 'transfer-request');
+  const map = new Map([...next.offers, ...found, ...domestic].map((o) => [o.clubId, o]));
+  next.offers = [...map.values()].sort((a, b) => b.clubRating - a.clubRating);
+  next.transferRequestedThisYear = true;
+  next.managerTrust = clamp((next.managerTrust ?? 55) - 12, 0, 100);
+  next.morale = clamp((next.morale ?? 70) + 3, 0, 100);
+  log(next, 'transfer', `Submitted a transfer request — ${found.length + domestic.length} clubs responded.`);
+  return { player: next, count: found.length + domestic.length };
 }

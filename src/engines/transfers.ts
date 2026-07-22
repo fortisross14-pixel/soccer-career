@@ -38,7 +38,7 @@ export function wageFor(club: ClubDef, role: SquadRole, overall: number): number
  *  - international: clubs abroad
  * A club only bids if the player fits between "prospect" and "clear upgrade".
  */
-export function generateOffers(p: Player, overall: number, scope: 'youth' | 'domestic' | 'international'): Offer[] {
+export function generateOffers(p: Player, overall: number, scope: 'youth' | 'domestic' | 'international', source?: Offer['source']): Offer[] {
   const target = overall * 0.62 + p.reputation * 0.38;
   let pool: ClubDef[];
 
@@ -88,6 +88,7 @@ export function generateOffers(p: Player, overall: number, scope: 'youth' | 'dom
       years: randInt(2, 5),
       continental: club.continental,
       international: scope === 'international',
+      source: source ?? (scope === 'international' ? 'international-scout' : scope === 'domestic' ? 'domestic-scout' : 'automatic'),
     });
   }
 
@@ -100,7 +101,7 @@ export function generateOffers(p: Player, overall: number, scope: 'youth' | 'dom
         clubId: fallback.id, clubName: fallback.name, clubRating: fallback.rating,
         tier: fallback.tier, country: fallback.country, role,
         wage: wageFor(fallback, role, overall), years: randInt(2, 3),
-        continental: fallback.continental, international: false,
+        continental: fallback.continental, international: false, source: source ?? 'automatic',
       });
     }
   }

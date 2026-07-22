@@ -36,6 +36,8 @@ export interface PositionDef {
 
 export type ClubTier = 'Elite' | 'Strong' | 'Mid' | 'Small' | 'Youth';
 export type ContinentalSpot = 'CL' | 'EL' | 'none';
+export type TrainingIntensity = 'light' | 'balanced' | 'intense';
+export type SeasonObjective = 'develop' | 'play' | 'perform' | 'trophy' | 'international' | 'transfer';
 
 export interface ClubDef {
   id: string;
@@ -138,6 +140,7 @@ export interface Offer {
   years: number;
   continental: ContinentalSpot;
   international: boolean;
+  source?: 'automatic' | 'domestic-scout' | 'international-scout' | 'transfer-request';
 }
 
 export interface EventLogEntry {
@@ -185,6 +188,17 @@ export interface Player {
   // per-year action flags
   trainedThisYear: boolean;
   searchedThisYear: boolean;
+  searchedDomesticThisYear?: boolean;
+  searchedInternationalThisYear?: boolean;
+  sponsoredThisYear?: boolean;
+  renegotiatedThisYear?: boolean;
+  transferRequestedThisYear?: boolean;
+  trainingIntensity?: TrainingIntensity;
+  seasonObjective?: SeasonObjective;
+  morale?: number;
+  fitness?: number;
+  managerTrust?: number;
+  clubContinental?: ContinentalSpot;
   retired: boolean;
   legacyScore?: number;
   legacyTier?: string;

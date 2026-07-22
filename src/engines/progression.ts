@@ -22,12 +22,13 @@ export interface ProgressionResult {
  */
 export function progressSkills(
   p: Player,
-  opts: { trainedKeys?: SkillKey[]; clubRating: number; minutesFactor: number },
+  opts: { trainedKeys?: SkillKey[]; clubRating: number; minutesFactor: number; intensity?: 'light' | 'balanced' | 'intense' },
 ): ProgressionResult {
   const pos = POSITION_MAP[p.position];
   const deltas: Partial<Record<SkillKey, number>> = {};
   const trained = new Set(opts.trainedKeys ?? []);
   const coaching = clamp((opts.clubRating - 55) / 40, 0, 1); // 0..1
+  const intensity = opts.intensity === 'intense' ? 1.22 : opts.intensity === 'light' ? 0.78 : 1;
 
   for (const key of Object.keys(p.skills) as SkillKey[]) {
     const def = SKILL_MAP[key];
@@ -59,6 +60,7 @@ export function progressSkills(
         if (def.ageCurve === 'mental') frac *= 1.15;   // game IQ keeps climbing
         if (def.ageCurve === 'physical' && p.age > 24) frac *= 0.45;
         if (trained.has(key)) frac *= 1.5;
+        frac *= intensity;
         frac = clamp(frac, 0, 0.55);
         delta = room * frac * (0.85 + Math.random() * 0.3);
         // small guaranteed creep so late-blooming still moves

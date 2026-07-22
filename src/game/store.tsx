@@ -1,9 +1,9 @@
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Player, PositionKey, SkillKey } from './types';
+import type { Player, PositionKey, SkillKey, SeasonObjective, TrainingIntensity } from './types';
 import {
   advanceYear, finalizeRetirement, signOffer, searchForClubs,
-  signSponsorship, requestContract, type YearSummary,
+  signSponsorship, requestContract, requestTransfer, setSeasonPlan, type YearSummary,
 } from './engine';
 import { createPlayer } from '../engines/newgame';
 import { marketValue } from '../engines/transfers';
@@ -18,7 +18,7 @@ interface Ctx {
   slot: number | null;
   summary: YearSummary | null;
   setScreen: (s: Screen) => void;
-  startNew: (name: string, country: string, position: PositionKey) => void;
+  startNew: (name: string, country: string, position: PositionKey, overwriteSlot?: number) => boolean;
   load: (slot: number) => void;
   exit: () => void;
   advance: (focus: SkillKey[] | null) => void;
@@ -28,6 +28,8 @@ interface Ctx {
   sponsor: () => number;
   renegotiate: () => { ok: boolean; msg: string };
   retire: () => void;
+  setPlan: (objective: SeasonObjective, intensity: TrainingIntensity) => void;
+  transferRequest: () => number;
 }
 
 const GameContext = createContext<Ctx | null>(null);
@@ -40,18 +42,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const persist = (p: Player, s: number | null) => {
     const target = s ?? firstFreeSlot();
+    if (!target) return;
     saveToSlot(target, p);
     setSlot(target);
   };
 
-  const startNew = (name: string, country: string, position: PositionKey) => {
+  const startNew = (name: string, country: string, position: PositionKey, overwriteSlot?: number): boolean => {
+    const target = overwriteSlot ?? firstFreeSlot();
+    if (!target) return false;
     const p = createPlayer(name, country, position);
     p.marketValue = marketValue(playerOverall(p), p.age, p.reputation);
-    const target = firstFreeSlot();
     saveToSlot(target, p);
     setPlayer(p);
     setSlot(target);
     setScreen('game');
+    return true;
   };
 
   const load = (s: number) => {
@@ -111,6 +116,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return { ok, msg };
   };
 
+
+  const setPlan = (objective: SeasonObjective, intensity: TrainingIntensity) => {
+    if (!player) return;
+    const next = setSeasonPlan(player, objective, intensity);
+    persist(next, slot);
+    setPlayer(next);
+  };
+
+  const transferRequest = (): number => {
+    if (!player) return 0;
+    const { player: next, count } = requestTransfer(player);
+    persist(next, slot);
+    setPlayer(next);
+    return count;
+  };
+
   const retire = () => {
     if (!player) return;
     const next: Player = JSON.parse(JSON.stringify(player));
@@ -125,7 +146,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       value={{
         screen, player, slot, summary, setScreen,
         startNew, load, exit, advance, clearSummary,
-        sign, search, sponsor, renegotiate, retire,
+        sign, search, sponsor, renegotiate, retire, setPlan, transferRequest,
       }}
     >
       {children}
