@@ -50,6 +50,13 @@ export interface YearSummary {
   careerVerdict?: string;
 }
 
+function buildPositionStats(p: Player, games:number, goals:number, assists:number, rating:number): Record<string,number> {
+  if (p.position === 'GK') return { saves: Math.round(games*(2.2+p.skills.reflexes/55)), cleanSheets: Math.round(games*(0.18+p.skills.handling/260)), penaltiesSaved: Math.round(games*p.skills.reflexes/1800), errors: Math.max(0,Math.round(games*(100-p.skills.decisions)/1200)) };
+  if (p.position === 'CB' || p.position === 'FB') return { tackles: Math.round(games*(1.5+p.skills.tackling/45)), interceptions: Math.round(games*(1+p.skills.decisions/75)), aerialDuels: Math.round(games*(p.skills.heading+p.skills.jumping)/90), cleanSheets: Math.round(games*(0.15+p.skills.tackling/300)) };
+  if (p.position === 'CM' || p.position === 'B2B' || p.position === 'AM') return { chancesCreated: Math.round(assists*4+games*p.skills.decisions/90), progressivePasses: Math.round(games*(2+p.skills.longPass/35)), recoveries: Math.round(games*(p.skills.workRate+p.skills.tackling)/85), passCompletion: Math.round(68+(p.skills.shortPass+p.skills.decisions)/7) };
+  return { shots: Math.round(goals*3.2+games*1.4), keyPasses: Math.round(assists*3+games*p.skills.decisions/110), dribbles: Math.round(games*p.skills.dribbling/55), matchWinners: Math.max(0,Math.round(goals*rating/28)) };
+}
+
 export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { player: Player; summary: YearSummary } {
   const p = clone(input);
   const yearLogs: string[] = [];
@@ -163,6 +170,7 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     nationalHonors: nat.nationalHonors,
     narrative: [],
     worldHeadlines: [],
+    positionStats: buildPositionStats(p, season.games, season.goals, season.assists, season.rating),
   };
   p.history.push(seasonRecord);
 
@@ -197,6 +205,10 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
   p.sponsoredThisYear = false;
   p.renegotiatedThisYear = false;
   p.transferRequestedThisYear = false;
+  p.loanRequestedThisYear = false;
+  p.eventPerformanceModifier = 0;
+  p.eventDevelopmentModifier = 0;
+  p.eventInjuryModifier = 0;
 
   const overallAfter = playerOverall(p);
   p.marketValue = marketValue(overallAfter, p.age, p.reputation);
@@ -345,7 +357,7 @@ export function signSponsorship(p: Player): { player: Player; amount: number } {
   return { player: next, amount };
 }
 
-export function requestContract(p: Player): { player: Player; ok: boolean; msg: string } {
+export function requestContract(p: Player, priority: 'wage' | 'role' | 'security' = 'wage'): { player: Player; ok: boolean; msg: string } {
   const next = clone(p);
   if (!next.contract) return { player: next, ok: false, msg: "You're a free agent — find a club first." };
   if (next.renegotiatedThisYear) return { player: next, ok: false, msg: 'You already approached the club this season.' };
@@ -353,11 +365,14 @@ export function requestContract(p: Player): { player: Player; ok: boolean; msg: 
   const club = CLUB_MAP[next.contract.clubId];
   const ovr = playerOverall(next);
   const deserved = wageFor(club, next.role, ovr);
-  if (deserved > next.contract.wage * 1.05) {
-    next.contract.wage = deserved;
-    next.contract.yearsLeft = Math.max(next.contract.yearsLeft, randInt(2, 4));
+  const leverage = (next.managerTrust ?? 55) + next.reputation * 0.35 + (priority === 'role' ? 5 : 0);
+  if (deserved > next.contract.wage * 1.05 || leverage >= 78) {
+    if (priority === 'wage') next.contract.wage = Math.max(deserved, Math.round(next.contract.wage * 1.12));
+    if (priority === 'security') next.contract.yearsLeft = Math.max(next.contract.yearsLeft, randInt(4, 5));
+    if (priority === 'role') next.managerTrust = clamp((next.managerTrust ?? 55) + 8, 0, 100);
+    next.contract.yearsLeft = Math.max(next.contract.yearsLeft, priority === 'security' ? 4 : randInt(2, 4));
     log(next, 'transfer', `Renegotiated terms with ${club.name}: ${deserved.toLocaleString()}/yr.`);
-    return { player: next, ok: true, msg: `New deal agreed: ${deserved.toLocaleString()}/yr.` };
+    return { player: next, ok: true, msg: priority === 'wage' ? `New deal agreed: ${next.contract.wage.toLocaleString()}/yr.` : priority === 'security' ? `Long-term security agreed: ${next.contract.yearsLeft} years.` : 'Improved squad-role assurances agreed.' };
   }
   next.managerTrust = clamp((next.managerTrust ?? 55) - 4, 0, 100);
   next.morale = clamp((next.morale ?? 70) - 2, 0, 100);

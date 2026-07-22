@@ -66,6 +66,12 @@ const GAMES_BY_ROLE: Record<SquadRole, [number, number]> = {
   fringe: [8, 18], reserve: [2, 8], youth: [16, 26],
 };
 
+function tacticalRoleFit(p: Player): number {
+  const r = p.tacticalRole; if (!r) return 0;
+  const good: Record<string,string[]> = { ST:['poacher','target-forward','complete-forward','false-nine','pressing-forward'], W:['winger','inside-forward','pressing-forward'], AM:['advanced-playmaker','false-nine'], B2B:['box-to-box','ball-winner'], CM:['deep-playmaker','advanced-playmaker','box-to-box'], CB:['stopper','ball-playing-defender'], FB:['overlapping-fullback','defensive-fullback'], GK:['sweeper-keeper','shot-stopper'] };
+  return good[p.position]?.includes(r) ? 0.05 : -0.04;
+}
+
 export function simulateSeason(p: Player, club: ClubDef, overall: number): SeasonOutput {
   const country = getCountry(club.country);
   const pos = POSITION_MAP[p.position];
@@ -85,7 +91,7 @@ export function simulateSeason(p: Player, club: ClubDef, overall: number): Seaso
   let games = randInt(lo, hi);
   let injured = false;
   const intensityRisk = p.trainingIntensity === 'intense' ? 0.07 : p.trainingIntensity === 'light' ? -0.025 : 0;
-  const injuryRisk = clamp(0.06 + intensityRisk + (100 - fitness) / 500 + (p.age > 30 ? (p.age - 30) * 0.015 : 0) + (1 - p.skills.stamina / 130), 0.03, 0.45);
+  const injuryRisk = clamp(0.06 + intensityRisk + (p.eventInjuryModifier ?? 0) + (100 - fitness) / 500 + (p.age > 30 ? (p.age - 30) * 0.015 : 0) + (1 - p.skills.stamina / 130), 0.03, 0.45);
   if (chance(injuryRisk)) {
     injured = true;
     const lost = randInt(4, Math.min(games - 2, 22));
@@ -98,7 +104,8 @@ export function simulateSeason(p: Player, club: ClubDef, overall: number): Seaso
   // --- goals & assists ---
   const recoveryPlan = p.seasonObjective === 'recover';
   const recoveryPerformanceFactor = recoveryPlan ? 0.78 : 1;
-  const form = clamp((0.78 + noise() * 0.4 + (morale - 60) / 220 + (fitness - 70) / 300) * recoveryPerformanceFactor, 0.4, 1.5);
+  const tacticalFit = tacticalRoleFit(p);
+  const form = clamp((0.78 + noise() * 0.4 + (morale - 60) / 220 + (fitness - 70) / 300 + (p.eventPerformanceModifier ?? 0) + tacticalFit) * recoveryPerformanceFactor, 0.4, 1.6);
   const roleScoring = role === 'star' ? 1.12 : role === 'starter' ? 1.0 : 0.86;
   const gThreat = clamp(attackIndex(p) / 68, 0.2, 2.0);
   const cThreat = clamp(creationIndex(p) / 68, 0.2, 2.0);

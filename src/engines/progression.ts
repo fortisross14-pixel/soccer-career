@@ -63,7 +63,7 @@ export function progressSkills(
         if (def.ageCurve === 'physical' && p.age > 24) frac *= 0.45;
         if (trained.has(key)) frac *= 1.5;
         if (opts.academySeason && opts.academyFocus === def.category) frac *= 1.38;
-        frac *= intensity * recoveryGrowthFactor * careerStageFactor;
+        frac *= intensity * recoveryGrowthFactor * careerStageFactor * (1 + (p.eventDevelopmentModifier ?? 0));
         frac = clamp(frac, 0, 0.55);
         delta = room * frac * (0.85 + Math.random() * 0.3);
         // small guaranteed creep so late-blooming still moves

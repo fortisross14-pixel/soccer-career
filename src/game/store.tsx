@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Player, PositionKey, SkillKey, SeasonObjective, TrainingIntensity } from './types';
+import type { Player, PositionKey, SkillKey, SeasonObjective, TrainingIntensity, SeasonEvent, TacticalRole, AgentType } from './types';
 import {
   advanceYear, finalizeRetirement, signOffer, searchForClubs,
   signSponsorship, requestContract, requestTransfer, setSeasonPlan, type YearSummary,
@@ -10,6 +10,7 @@ import { marketValue } from '../engines/transfers';
 import { playerOverall } from '../engines/overall';
 import { careerVerdict } from '../engines/narrative';
 import { saveToSlot, loadSlot, firstFreeSlot, addToHof } from './save';
+import { generateSeasonEvents, applySeasonEventChoice } from '../engines/events';
 
 type Screen = 'home' | 'game';
 
@@ -18,6 +19,8 @@ interface Ctx {
   player: Player | null;
   slot: number | null;
   summary: YearSummary | null;
+  pendingEvents: SeasonEvent[];
+  currentEvent: SeasonEvent | null;
   setScreen: (s: Screen) => void;
   startNew: (name: string, country: string, position: PositionKey, overwriteSlot?: number) => boolean;
   load: (slot: number) => void;
@@ -27,10 +30,15 @@ interface Ctx {
   sign: (i: number) => void;
   search: (scope: 'domestic' | 'international') => void;
   sponsor: () => number;
-  renegotiate: () => { ok: boolean; msg: string };
+  renegotiate: (priority?: 'wage' | 'role' | 'security') => { ok: boolean; msg: string };
   retire: () => void;
   setPlan: (objective: SeasonObjective, intensity: TrainingIntensity) => void;
   transferRequest: () => number;
+  loanRequest: () => number;
+  targetedSearch: (country: string) => number;
+  resolveEvent: (choiceId: string) => void;
+  setTacticalRole: (role: TacticalRole) => void;
+  setAgent: (agent: AgentType) => void;
 }
 
 const GameContext = createContext<Ctx | null>(null);
@@ -40,6 +48,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<Player | null>(null);
   const [slot, setSlot] = useState<number | null>(null);
   const [summary, setSummary] = useState<YearSummary | null>(null);
+  const [pendingEvents, setPendingEvents] = useState<SeasonEvent[]>([]);
+  const [eventPlayer, setEventPlayer] = useState<Player | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<SkillKey[] | null>(null);
 
   const persist = (p: Player, s: number | null) => {
     const target = s ?? firstFreeSlot();
@@ -76,13 +87,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setScreen('home');
   };
 
-  const advance = (focus: SkillKey[] | null) => {
-    if (!player || player.retired) return;
-    const { player: next, summary: sum } = advanceYear(player, focus);
+  const finishAdvance = (base: Player, focus: SkillKey[] | null) => {
+    const { player: next, summary: sum } = advanceYear(base, focus);
     if (sum.retired) addToHof(next);
-    persist(next, slot);
-    setPlayer(next);
-    setSummary(sum);
+    persist(next, slot); setPlayer(next); setSummary(sum); setPendingEvents([]); setEventPlayer(null); setPendingFocus(null);
+  };
+
+  const advance = (focus: SkillKey[] | null) => {
+    if (!player || player.retired || pendingEvents.length) return;
+    const events = generateSeasonEvents(player);
+    setPendingFocus(focus); setEventPlayer(player); setPendingEvents(events);
+    if (!events.length) finishAdvance(player, focus);
+  };
+
+  const resolveEvent = (choiceId: string) => {
+    if (!eventPlayer || !pendingEvents.length) return;
+    const nextPlayer = applySeasonEventChoice(eventPlayer, pendingEvents[0], choiceId);
+    const remaining = pendingEvents.slice(1);
+    setEventPlayer(nextPlayer); setPendingEvents(remaining);
+    if (!remaining.length) finishAdvance(nextPlayer, pendingFocus);
   };
 
   const clearSummary = () => setSummary(null);
@@ -109,9 +132,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return amount;
   };
 
-  const renegotiate = () => {
+  const renegotiate = (priority: 'wage' | 'role' | 'security' = 'wage') => {
     if (!player) return { ok: false, msg: 'No player.' };
-    const { player: next, ok, msg } = requestContract(player);
+    const { player: next, ok, msg } = requestContract(player, priority);
     persist(next, slot);
     setPlayer(next);
     return { ok, msg };
@@ -124,6 +147,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
     persist(next, slot);
     setPlayer(next);
   };
+
+  const loanRequest = (): number => {
+    if (!player || player.age < 16 || player.loanRequestedThisYear) return 0;
+    const next = clonePlayer(player);
+    const offers = searchForClubs(next, 'domestic').offers.slice(0,3).map(o => ({...o, years:1, loan:true, source:'loan-request' as const, wage:Math.round(o.wage*0.45)}));
+    next.offers = [...next.offers.filter(o=>!o.loan), ...offers]; next.loanRequestedThisYear = true;
+    persist(next, slot); setPlayer(next); return offers.length;
+  };
+
+  const targetedSearch = (country: string): number => {
+    if (!player || player.age < 18) return 0;
+    const next = searchForClubs(player, 'international');
+    const offers = next.offers.filter(o=>o.country===country).map(o=>({...o,source:'targeted-search' as const}));
+    const merged = offers.length ? offers : next.offers.slice(0,2).map(o=>({...o,source:'targeted-search' as const}));
+    const updated = clonePlayer(player); updated.offers=[...player.offers,...merged].filter((o,i,a)=>a.findIndex(x=>x.clubId===o.clubId)===i);
+    updated.searchedInternationalThisYear=true; persist(updated,slot); setPlayer(updated); return merged.length;
+  };
+
+  const setTacticalRole = (role: TacticalRole) => { if (!player) return; const next=clonePlayer(player); next.tacticalRole=role; persist(next,slot); setPlayer(next); };
+  const setAgent = (agent: AgentType) => { if (!player) return; const next=clonePlayer(player); next.agentType=agent; persist(next,slot); setPlayer(next); };
 
   const transferRequest = (): number => {
     if (!player) return 0;
@@ -154,12 +197,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const clonePlayer = (p: Player): Player => JSON.parse(JSON.stringify(p));
+
   return (
     <GameContext.Provider
       value={{
-        screen, player, slot, summary, setScreen,
+        screen, player, slot, summary, pendingEvents, currentEvent: pendingEvents[0] ?? null, setScreen,
         startNew, load, exit, advance, clearSummary,
-        sign, search, sponsor, renegotiate, retire, setPlan, transferRequest,
+        sign, search, sponsor, renegotiate, retire, setPlan, transferRequest, loanRequest, targetedSearch, resolveEvent, setTacticalRole, setAgent,
       }}
     >
       {children}

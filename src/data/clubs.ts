@@ -93,12 +93,27 @@ const D1: Record<string, Row[]> = {
   ],
 };
 
-// A modest second division per country (generated) for loans / early career.
+// Localized fictional clubs fill the lower divisions without placeholder country codes.
+const LOCAL_SECOND_DIVISION: Record<string, string[]> = {
+  England: ['Kingsbridge Town', 'Northcastle Rovers', 'Ashford Athletic', 'Redmont City', 'Westbury United', 'Bromley Vale'],
+  Spain: ['CD Valdeoro', 'Atlético Montemar', 'Unión Deportiva Segovia', 'Real Puerto Norte', 'CF Sierra Blanca', 'Deportivo Alcázar'],
+  Italy: ['AS Monteverde', 'US Castelrosso', 'Virtus Ravenna', 'Calcio San Luca', 'FC Valle d’Oro', 'AC Portofino'],
+  Germany: ['SV Grünwald', 'FC Rheinstadt', 'VfB Falkenberg', 'SC Nordhafen', 'Eintracht Linden', 'TSV Rotheim'],
+  France: ['AS Montreuil', 'Olympique Valence', 'Racing Saint-Clair', 'FC Côte Bleue', 'Stade Limoges', 'Union de Savoie'],
+  Netherlands: ['VV Waterdam', 'FC Rijnstad', 'SC Noordwijk', 'SV Oranjeveld', 'De Graafhaven', 'Excelsior Marken'],
+  Portugal: ['Académica do Minho', 'União de Setúbal', 'SC Vila Real', 'Atlético de Faro', 'Estrela do Douro', 'CD Beira-Mar Norte'],
+  Brazil: ['Atlético do Vale', 'União Carioca', 'EC Santa Cruz', 'Ferroviário Paulista', 'Náutico do Sul', 'Real Brasília'],
+  Argentina: ['Deportivo Belgrano', 'Atlético del Sur', 'Unión Mendoza', 'Central Córdoba Norte', 'Sportivo Rosario', 'Ferro Carril Oesteño'],
+  USA: ['Austin Republic', 'Brooklyn Athletic', 'San Diego Union', 'Carolina FC', 'Detroit City Stars', 'Nevada United'],
+  Mexico: ['Deportivo Oaxaca', 'Atlético Mérida', 'Unión de Sonora', 'Real Veracruz', 'Mineros del Bajío', 'Club Morelia Norte'],
+  Japan: ['Tokyo Seiryu', 'Osaka Mirai', 'Nagoya Phoenix', 'Sapporo North Stars', 'Kyoto Yamato', 'Fukuoka Horizon'],
+};
+
 function secondDivision(country: string): ClubDef[] {
-  const names = ['County', 'Athletic', 'Rovers', 'City B', 'Union', 'Sporting'];
-  return names.map((n, i) => {
+  const names = LOCAL_SECOND_DIVISION[country] ?? ['United', 'Athletic', 'Sporting', 'Rovers', 'City', 'Olympic'].map((suffix) => `${country} ${suffix}`);
+  return names.map((name, i) => {
     const rating = 60 + ((i * 7 + country.length * 3) % 9);
-    return mkClub(country, `${country.slice(0, 3).toUpperCase()} ${n}`, rating, 'none', 2);
+    return mkClub(country, name, rating, 'none', 2);
   });
 }
 
@@ -122,8 +137,34 @@ function mkClub(country: string, name: string, rating: number, continental: Cont
 
 export const CLUBS: ClubDef[] = [];
 for (const [country, rows] of Object.entries(D1)) {
+  // Keep this original creation order stable so existing save club IDs continue to resolve.
   rows.forEach(([name, rating, cont]) => CLUBS.push(mkClub(country, name, rating, cont, 1)));
   secondDivision(country).forEach((c) => CLUBS.push(c));
+}
+
+const EXPANSION_NAMES: Record<string, string[]> = {
+  England: ['Nottingham Forest','Everton','Wolverhampton Wanderers','Leicester City','Southampton','Leeds United'],
+  Spain: ['Celta Vigo','Osasuna','Mallorca','Girona','Rayo Vallecano','Real Valladolid','Deportivo La Coruña','UD Las Palmas'],
+  Italy: ['Udinese','Genoa','Sampdoria','Parma','Cagliari','Hellas Verona','US Lecce','Palermo'],
+  Germany: ['Mainz 05','FC Augsburg','VfL Wolfsburg','Union Berlin','Hertha Berlin','Hamburger SV','Hannover 96','1. FC Nürnberg','St. Pauli'],
+  France: ['Nantes','Montpellier','Toulouse','Auxerre','Saint-Étienne','Bordeaux','Reims','Le Havre','Metz'],
+  Netherlands: ['Heerenveen','Vitesse','Sparta Rotterdam','NEC Nijmegen','PEC Zwolle','Willem II','Go Ahead Eagles','FC Groningen','NAC Breda','RKC Waalwijk','Heracles Almelo','Fortuna Sittard'],
+  Portugal: ['Boavista','Rio Ave','Estoril Praia','Gil Vicente','Famalicão','Casa Pia','Moreirense','Nacional','Farense','Arouca','Belenenses','Paços de Ferreira'],
+  Brazil: ['Fluminense','Botafogo','Corinthians','Cruzeiro','Internacional','Fortaleza','Athletico Paranaense','Ceará','Sport Recife','Coritiba'],
+  Argentina: ['Estudiantes','Vélez Sarsfield','Lanús','Talleres','Argentinos Juniors','Huracán','Banfield','Colón','Defensa y Justicia','Godoy Cruz'],
+  USA: ['New York City FC','LA Galaxy','Orlando City','Philadelphia Union','Nashville SC','Minnesota United','Charlotte FC','Austin FC','Toronto FC','Sporting Kansas City'],
+  Mexico: ['Cruz Azul','Pachuca','León','Santos Laguna','Atlas','Puebla','Necaxa','Querétaro','Mazatlán','Atlético San Luis','Tijuana','Juárez'],
+  Japan: ['FC Tokyo','Cerezo Osaka','Sanfrecce Hiroshima','Nagoya Grampus','Kashiwa Reysol','Avispa Fukuoka','Shonan Bellmare','Albirex Niigata','Júbilo Iwata','Tokyo Verdy','Sagan Tosu','Machida Zelvia'],
+};
+
+// Expand every top flight to 18 clubs. Added teams are appended after the legacy database
+// so old save IDs remain stable. Ratings are generated from league depth and list order.
+for (const [country, names] of Object.entries(EXPANSION_NAMES)) {
+  const existing = CLUBS.filter((club) => club.country === country && club.division === 1).length;
+  names.slice(0, Math.max(0, 18 - existing)).forEach((name, index) => {
+    const rating = Math.max(65, 72 - Math.floor(index / 3) + ((name.length + country.length) % 3));
+    CLUBS.push(mkClub(country, name, rating, 'none', 1));
+  });
 }
 
 export const CLUB_MAP: Record<string, ClubDef> = Object.fromEntries(CLUBS.map((c) => [c.id, c]));

@@ -38,6 +38,8 @@ export type ClubTier = 'Elite' | 'Strong' | 'Mid' | 'Small' | 'Youth';
 export type ContinentalSpot = 'CL' | 'EL' | 'none';
 export type TrainingIntensity = 'light' | 'balanced' | 'intense';
 export type SeasonObjective = 'develop' | 'play' | 'perform' | 'trophy' | 'international' | 'transfer' | 'recover';
+export type TacticalRole = 'poacher' | 'target-forward' | 'complete-forward' | 'false-nine' | 'pressing-forward' | 'winger' | 'inside-forward' | 'advanced-playmaker' | 'box-to-box' | 'ball-winner' | 'deep-playmaker' | 'stopper' | 'ball-playing-defender' | 'overlapping-fullback' | 'defensive-fullback' | 'sweeper-keeper' | 'shot-stopper';
+export type AgentType = 'family' | 'local' | 'international' | 'commercial';
 
 export interface ClubDef {
   id: string;
@@ -126,7 +128,23 @@ export interface SeasonRecord {
   nationalHonors: string[];
   narrative?: string[];
   worldHeadlines?: string[];
+  positionStats?: Record<string, number>;
 }
+
+export interface SeasonEventChoice {
+  id: string;
+  label: string;
+  description: string;
+  effects: { morale?: number; fitness?: number; managerTrust?: number; reputation?: number; performance?: number; development?: number; injuryRisk?: number; decisionScore?: number };
+}
+export interface SeasonEvent {
+  id: string;
+  title: string;
+  body: string;
+  category: 'life' | 'career' | 'match' | 'injury';
+  choices: SeasonEventChoice[];
+}
+export interface CareerCharacter { name: string; role: 'mentor' | 'captain' | 'prospect' | 'friend'; relationship: number; overall: number; clubName: string; }
 
 export interface Honor {
   label: string;
@@ -144,7 +162,8 @@ export interface Offer {
   years: number;
   continental: ContinentalSpot;
   international: boolean;
-  source?: 'automatic' | 'domestic-scout' | 'international-scout' | 'transfer-request';
+  source?: 'automatic' | 'domestic-scout' | 'international-scout' | 'transfer-request' | 'loan-request' | 'targeted-search';
+  loan?: boolean;
   academyFocus?: SkillCategory;
 }
 
@@ -256,6 +275,13 @@ export interface Player {
   rivalTotals?: { games: number; goals: number; assists: number; trophies: number };
   rivalHistory?: RivalSeason[];
   worldHeadlines?: string[];
+  tacticalRole?: TacticalRole;
+  agentType?: AgentType;
+  loanRequestedThisYear?: boolean;
+  eventPerformanceModifier?: number;
+  eventDevelopmentModifier?: number;
+  eventInjuryModifier?: number;
+  characters?: CareerCharacter[];
 }
 
 export interface SaveMeta {

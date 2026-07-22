@@ -88,6 +88,8 @@ export default function Summary({ player }: { player: Player }) {
           <p className="text-zinc-500 text-sm">No seasons played yet. Hit <span className="text-pitch-400">Advance year</span> to begin your journey.</p>
         )}
       </div>
+
+      {player.characters && player.characters.length > 0 && <div className="lg:col-span-12 card p-6"><div className="eyebrow mb-4">Dressing-room relationships</div><div className="grid md:grid-cols-3 gap-3">{player.characters.map(c=><div key={c.name} className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4"><div className="text-[10px] uppercase tracking-wide text-zinc-500">{c.role}</div><div className="font-medium mt-1">{c.name}</div><div className="flex justify-between text-sm mt-3"><span className="text-zinc-500">Relationship</span><span className="stat-num text-pitch-400">{c.relationship}</span></div><div className="text-xs text-zinc-600 mt-1">OVR {c.overall} · {c.clubName}</div></div>)}</div></div>}
     </div>
   );
 }

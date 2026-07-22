@@ -20,7 +20,7 @@ export default function Career({ player }: { player: Player }) {
               <th className="text-center font-medium">A</th>
               <th className="text-center font-medium">Rating</th>
               <th className="text-center font-medium">Finish</th>
-              <th className="text-center font-medium">NT</th>
+              <th className="text-center font-medium">NT</th><th className="text-left font-medium">Role metrics</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/70">
@@ -34,11 +34,11 @@ export default function Career({ player }: { player: Player }) {
                 <td className="text-center stat-num">{h.assists}</td>
                 <td className="text-center stat-num text-pitch-400">{h.rating.toFixed(1)}</td>
                 <td className="text-center text-zinc-400">{h.leagueFinish ? ordinal(h.leagueFinish) : '—'}</td>
-                <td className="text-center text-zinc-500 text-xs">{h.capsThisYear ? `${h.capsThisYear} (${h.intlGoals}g)` : '—'}</td>
+                <td className="text-center text-zinc-500 text-xs">{h.capsThisYear ? `${h.capsThisYear} (${h.intlGoals}g)` : '—'}</td><td className="text-zinc-500 text-[11px] min-w-[220px]">{h.positionStats ? Object.entries(h.positionStats).slice(0,3).map(([k,v])=>`${pretty(k)} ${v}`).join(' · ') : '—'}</td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={9} className="text-center text-zinc-600 py-8">No seasons played yet.</td></tr>
+              <tr><td colSpan={10} className="text-center text-zinc-600 py-8">No seasons played yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -54,6 +54,8 @@ export default function Career({ player }: { player: Player }) {
     </div>
   );
 }
+
+function pretty(k:string){return k.replace(/([A-Z])/g,' $1').replace(/^./,c=>c.toUpperCase())}
 
 function Tot({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
   return (

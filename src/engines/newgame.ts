@@ -2,6 +2,7 @@ import type { Player, PositionKey, SkillKey } from '../game/types';
 import { SKILL_KEYS } from '../data/skills';
 import { POSITION_MAP } from '../data/positions';
 import { clamp, randInt } from './util';
+import { realisticName } from '../data/names';
 
 export const START_AGE = 10;
 
@@ -76,7 +77,7 @@ export function createPlayer(name: string, country: string, position: PositionKe
     injurySeasons: 0,
     intenseTrainingYears: 0,
     careerDecisionScore: 0,
-    rivalName: ['Alex Vega', 'Noah Silva', 'Leo Marin', 'Kenji Sato'][randInt(0, 3)],
+    rivalName: realisticName(country, `${name}-${country}-${position}-${Date.now()}`),
     rivalOverall: randInt(28, 42),
     rivalCountry: country,
     rivalPosition: position,
@@ -84,6 +85,15 @@ export function createPlayer(name: string, country: string, position: PositionKe
     rivalTotals: { games: 0, goals: 0, assists: 0, trophies: 0 },
     rivalHistory: [],
     worldHeadlines: [],
+    tacticalRole: position === 'ST' ? 'complete-forward' : position === 'W' ? 'winger' : position === 'AM' ? 'advanced-playmaker' : position === 'B2B' ? 'box-to-box' : position === 'CM' ? 'deep-playmaker' : position === 'CB' ? 'ball-playing-defender' : position === 'FB' ? 'overlapping-fullback' : 'shot-stopper',
+    agentType: 'family',
+    loanRequestedThisYear: false,
+    eventPerformanceModifier: 0, eventDevelopmentModifier: 0, eventInjuryModifier: 0,
+    characters: [
+      { name: realisticName(country, `mentor-${name}`), role: 'mentor', relationship: 68, overall: 76, clubName: `${country} Academy` },
+      { name: realisticName(country, `captain-${name}`), role: 'captain', relationship: 52, overall: 80, clubName: `${country} Academy` },
+      { name: realisticName(country, `prospect-${name}`), role: 'prospect', relationship: 45, overall: 34, clubName: `${country} Academy` },
+    ],
     retired: false,
   };
 }

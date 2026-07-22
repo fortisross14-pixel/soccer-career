@@ -32,6 +32,11 @@ function migratePlayer(p: Player): Player {
   p.rivalTotals ??= { games: 0, goals: 0, assists: 0, trophies: 0 };
   p.rivalHistory ??= [];
   p.worldHeadlines ??= [];
+  p.tacticalRole ??= p.position === 'ST' ? 'complete-forward' : p.position === 'W' ? 'winger' : p.position === 'AM' ? 'advanced-playmaker' : p.position === 'B2B' ? 'box-to-box' : p.position === 'CM' ? 'deep-playmaker' : p.position === 'CB' ? 'ball-playing-defender' : p.position === 'FB' ? 'overlapping-fullback' : 'shot-stopper';
+  p.agentType ??= 'family';
+  p.loanRequestedThisYear ??= false;
+  p.eventPerformanceModifier ??= 0; p.eventDevelopmentModifier ??= 0; p.eventInjuryModifier ??= 0;
+  p.characters ??= [];
   p.academyClubId ??= undefined;
   p.academyFocus ??= undefined;
   p.professionalDebutAge ??= p.history.find((h) => h.age >= 16 && h.games > 0)?.age ?? null;

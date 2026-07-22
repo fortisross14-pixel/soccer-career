@@ -3,7 +3,7 @@ import { useGame } from '../game/store';
 import { playerOverall } from '../engines/overall';
 import { POSITION_MAP } from '../data/positions';
 import { fmtMoney } from '../engines/util';
-import { TRAINING } from './tabs/Actions';
+import { TRAINING } from '../data/development';
 import Summary from './tabs/Summary';
 import Skills from './tabs/Skills';
 import Actions from './tabs/Actions';
@@ -14,11 +14,12 @@ import Rival from './tabs/Rival';
 import NationalTeam from './tabs/NationalTeam';
 import Records from './tabs/Records';
 import YearSummary from './YearSummary';
+import SeasonEventModal from './SeasonEventModal';
 
-const TABS = ['Overview', 'Development', 'Decisions', 'National Team', 'Rivalry', 'Records', 'Career', 'Honors', 'Timeline'] as const;
+const TABS = ['Overview', 'Development', 'Contract', 'National Team', 'Rivalry', 'Records', 'Career', 'Honors', 'Timeline'] as const;
 
 export default function Game() {
-  const { player, exit, advance, summary, clearSummary } = useGame();
+  const { player, exit, advance, summary, clearSummary, currentEvent, pendingEvents, resolveEvent } = useGame();
   const [tab, setTab] = useState(0);
   const [focusId, setFocusId] = useState<string | null>(null);
 
@@ -74,8 +75,8 @@ export default function Game() {
 
       <main className="p-4 md:p-8">
         {tab === 0 && <Summary player={player} />}
-        {tab === 1 && <Skills player={player} />}
-        {tab === 2 && <Actions player={player} focusId={focusId} setFocusId={setFocusId} />}
+        {tab === 1 && <Skills player={player} focusId={focusId} setFocusId={setFocusId} />}
+        {tab === 2 && <Actions player={player} />}
         {tab === 3 && <NationalTeam player={player} />}
         {tab === 4 && <Rival player={player} />}
         {tab === 5 && <Records player={player} />}
@@ -90,7 +91,7 @@ export default function Game() {
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
             <div className="text-sm text-zinc-500 hidden sm:block">
               {focusId ? <>Training: <span className="text-pitch-400">{TRAINING.find((t) => t.id === focusId)?.label}</span></>
-                : 'No training focus set — pick one in Actions.'}
+                : 'No training focus set — choose one in Development.'}
             </div>
             <button className="btn-primary px-8 py-3 flex-1 sm:flex-none" onClick={doAdvance}>
               ▶ Advance year
@@ -107,6 +108,7 @@ export default function Game() {
         </div>
       )}
 
+      {currentEvent && <SeasonEventModal event={currentEvent} index={1} total={pendingEvents.length} onChoose={resolveEvent} />}
       {summary && <YearSummary summary={summary} player={player} onClose={clearSummary} />}
     </div>
   );
