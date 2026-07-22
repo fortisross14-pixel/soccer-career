@@ -23,26 +23,23 @@ export default function Home() {
   }, [sortBy, refresh]);
 
   return (
-    <div className="max-w-6xl mx-auto px-6 pt-10 pb-16">
-      <header className="flex items-center gap-4 mb-10">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pitch-500 to-pitch-700 grid place-items-center shadow-lg shadow-pitch-900/40">
-          <span className="text-3xl">⚽</span>
-        </div>
+    <div className="home-game-shell">
+      <header className="home-game-hero">
+        <div className="home-crest"><span>XI</span></div>
         <div>
-          <h1 className="font-display text-5xl tracking-tighter leading-none">
-            THE <span className="text-pitch-500">ELEVENTH</span>
-          </h1>
-          <p className="text-zinc-500 text-sm tracking-wide">a football life, one season at a time</p>
+          <span className="home-edition">CAREER SIMULATOR · 2026 EDITION</span>
+          <h1>THE <em>ELEVENTH</em></h1>
+          <p>From academy hopeful to football immortality.</p>
         </div>
       </header>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="home-sections">
         {/* Save slots */}
-        <section className="card p-7">
-          <div className="eyebrow mb-4">Save slots</div>
+        <section className="career-selection-panel">
+          <div className="panel-heading"><div><span>CAREER MODE</span><h2>Choose your journey</h2></div><b>01</b></div>
           <div className="space-y-3">
             {slots.map((s, i) => (
-              <div key={i} className="flex items-center justify-between bg-zinc-900/70 rounded-2xl px-5 py-3.5">
+              <div key={i} className={`save-career-card ${s ? 'occupied' : 'empty'}`}>
                 {s ? (
                   <>
                     <div>
@@ -75,9 +72,9 @@ export default function Home() {
         </section>
 
         {/* Hall of fame */}
-        <section className="card p-7">
-          <div className="flex items-center justify-between mb-4">
-            <div className="eyebrow flex items-center gap-2">🏆 Hall of fame</div>
+        <section className="hall-panel">
+          <div className="panel-heading"><div><span>LEGACY ARCHIVE</span><h2>Hall of Fame</h2></div><b>02</b></div>
+          <div className="flex items-center justify-end mb-4">
             <select
               className="bg-zinc-900 border border-zinc-800 text-xs rounded-xl px-3 py-1.5"
               value={sortBy}
@@ -208,7 +205,7 @@ function LegendOverview({ entry, player }: { entry: HofEntry; player?: Player })
   </div>;
 }
 
-function LegendClubCareer({ entry, player }: { entry: HofEntry; player?: Player }) {
+function LegendClubCareer({ player }: { entry: HofEntry; player?: Player }) {
   if (!player) return <p className="text-sm text-zinc-500">Detailed season history is unavailable for this older entry.</p>;
   return <div className="space-y-2">{player.history.map((season) => <div key={`${season.season}-${season.clubId}`} className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4"><div className="flex justify-between gap-3"><div><div className="font-medium">Age {season.age} · {season.clubName}</div><div className="text-xs text-zinc-500">{season.competition} · {season.role}</div></div><div className="stat-num text-pitch-400">OVR {season.overall}</div></div><div className="grid grid-cols-4 gap-2 mt-3 text-center text-xs"><Mini label="Apps" value={season.games}/><Mini label="Goals" value={season.goals}/><Mini label="Assists" value={season.assists}/><Mini label="Rating" value={season.rating || '—'}/></div>{season.narrative?.length ? <p className="text-xs text-zinc-500 mt-3">{season.narrative[0]}</p> : null}</div>)}</div>;
 }

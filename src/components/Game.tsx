@@ -15,96 +15,197 @@ import NationalTeam from './tabs/NationalTeam';
 import Records from './tabs/Records';
 import YearSummary from './YearSummary';
 import SeasonEventModal from './SeasonEventModal';
+import { CLUB_MAP } from '../data/clubs';
 
-const TABS = ['Overview', 'Development', 'Contract', 'National Team', 'Rivalry', 'Records', 'Career', 'Honors', 'Timeline'] as const;
+
+const TABS = [
+  { label: 'Overview', icon: '⌂' },
+  { label: 'Development', icon: '↗' },
+  { label: 'Contract', icon: '✎' },
+  { label: 'National Team', icon: '◎' },
+  { label: 'Rivalry', icon: '⚔' },
+  { label: 'Records', icon: '▤' },
+  { label: 'Career', icon: '◫' },
+  { label: 'Honors', icon: '★' },
+  { label: 'Timeline', icon: '⌁' },
+] as const;
+
+function playUiSound(kind: 'tap' | 'advance') {
+  try {
+    const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = kind === 'advance' ? 'sawtooth' : 'sine';
+    oscillator.frequency.setValueAtTime(kind === 'advance' ? 160 : 420, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(kind === 'advance' ? 520 : 620, ctx.currentTime + 0.09);
+    gain.gain.setValueAtTime(0.035, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.13);
+    oscillator.addEventListener('ended', () => void ctx.close());
+  } catch {
+    // Sound is an enhancement; browsers may block it without user interaction.
+  }
+}
 
 export default function Game() {
   const { player, exit, advance, summary, clearSummary, currentEvent, pendingEvents, resolveEvent } = useGame();
   const [tab, setTab] = useState(0);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [soundOn, setSoundOn] = useState(true);
 
   if (!player) return null;
   const ovr = playerOverall(player);
-  const pos = POSITION_MAP[player.position];
+const pos = POSITION_MAP[player.position];
+
+const currentClub = player.contract
+  ? CLUB_MAP[player.contract.clubId]
+  : player.academyClubId
+    ? CLUB_MAP[player.academyClubId]
+    : null;
+
+const clubLabel =
+  currentClub?.name ??
+  (player.age < 16 ? 'Academy prospect' : 'Free agent');
+
+const fitness = player.fitness ?? 75;
+const morale = player.morale ?? 70;
+
+const fitnessTone =
+  fitness >= 75
+    ? 'good'
+    : fitness >= 45
+      ? 'warn'
+      : 'danger';
+
+const shirtNumber =
+  player.position === 'GK'
+    ? '1'
+    : player.position === 'ST'
+      ? '9'
+      : player.position === 'W'
+        ? '11'
+        : player.position === 'CB' || player.position === 'FB'
+          ? '4'
+          : '8';
+  const selectTab = (index: number) => {
+    if (soundOn) playUiSound('tap');
+    setTab(index);
+  };
 
   const doAdvance = () => {
+    if (soundOn) playUiSound('advance');
     const keys = focusId ? TRAINING.find((t) => t.id === focusId)?.keys ?? null : null;
     advance(keys);
     setFocusId(null);
   };
 
   return (
-    <div className="app-shell max-w-7xl mx-auto pb-28">
-      {/* header */}
-      <header className="game-header flex items-center justify-between px-5 md:px-8 pt-5 pb-4">
-        <button className="flex items-center gap-3" onClick={exit}>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pitch-500 to-pitch-700 grid place-items-center">
-            <span className="text-xl">⚽</span>
-          </div>
-          <span className="font-display text-2xl tracking-tighter hidden sm:block">
-            THE <span className="text-pitch-500">ELEVENTH</span>
-          </span>
+    <div className="career-game">
+      <aside className="career-rail">
+        <button className="brand-mark" onClick={exit} aria-label="Return to main menu">
+          <span>XI</span>
+          <small>THE<br />ELEVENTH</small>
         </button>
-        <div className="flex items-center gap-3 text-sm">
-          <div className="flex items-center gap-2 bg-zinc-900 px-3.5 py-1.5 rounded-full border border-zinc-800">
-            <div className="w-2 h-2 rounded-full bg-pitch-500 animate-pulse" />
-            <span className="stat-num">{player.age}</span><span className="text-zinc-500">yo</span>
-          </div>
-          <div className="hidden sm:block text-zinc-300">{player.name} <span className="text-pitch-500">· {pos.short}</span></div>
-          <div className="stat-num text-pitch-400">{fmtMoney(player.money)}</div>
-          <div className="hidden md:flex items-center gap-1.5 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">
-            <span className="text-zinc-500 text-xs">OVR</span><span className="stat-num text-pitch-400">{ovr}</span>
-          </div>
-        </div>
-      </header>
 
-      {/* tabs */}
-      <nav className="game-nav px-4 md:px-8 pt-2">
-        <div className="flex gap-1 overflow-x-auto">
-          {TABS.map((t, i) => (
-            <button
-              key={t}
-              onClick={() => setTab(i)}
-              className={`px-4 sm:px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
-                tab === i ? 'border-pitch-500 text-pitch-400' : 'border-transparent text-zinc-400 hover:text-zinc-200'
-              }`}
-            >{t}</button>
+        <nav className="rail-nav" aria-label="Career screens">
+          {TABS.map((item, index) => (
+            <button key={item.label} className={tab === index ? 'active' : ''} onClick={() => selectTab(index)}>
+              <span className="rail-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
           ))}
+        </nav>
+
+        <div className="rail-footer">
+          <button className="sound-toggle" onClick={() => setSoundOn((value) => !value)}>
+            {soundOn ? '◖))' : '◖×'} <span>{soundOn ? 'Sound on' : 'Sound off'}</span>
+          </button>
+          <button className="exit-career" onClick={exit}>Exit career</button>
         </div>
+      </aside>
+
+      <div className="career-stage">
+        <header className="player-hud">
+          <div className="player-identity">
+            <div className="shirt-number">{shirtNumber}</div>
+            
+            
+            <div>
+              <span className="hud-kicker">{player.age < 16 ? 'ACADEMY JOURNEY' : player.retired ? 'CAREER ARCHIVE' : 'ACTIVE CAREER'}</span>
+              <h1>{player.name}</h1>
+              <p>{clubLabel} <b>·</b> {pos.name} <b>·</b> Age {player.age}</p>
+            </div>
+          </div>
+
+          <div className="hud-stats">
+            <div className="hud-stat overall"><span>OVR</span><strong>{ovr}</strong></div>
+            
+            <div className="hud-stat">
+              <span>Morale</span>
+                <strong>{morale}</strong>
+              </div>
+
+            <div className={`hud-stat ${fitnessTone}`}>
+              <span>Fitness</span>
+              <strong>{fitness}</strong>
+            </div>
+            
+            <div className="hud-stat money"><span>Career wealth</span><strong>{fmtMoney(player.money)}</strong></div>
+          </div>
+        </header>
+
+        <div className="screen-titlebar">
+          <div>
+            <span>{String(tab + 1).padStart(2, '0')} / {String(TABS.length).padStart(2, '0')}</span>
+            <h2>{TABS[tab].label}</h2>
+          </div>
+          <div className="season-chip">
+            <small>Current season</small>
+            <strong>{player.age} YEARS OLD</strong>
+          </div>
+        </div>
+
+        <main className="career-content animate-screen-in">
+          {tab === 0 && <Summary player={player} />}
+          {tab === 1 && <Skills player={player} focusId={focusId} setFocusId={setFocusId} />}
+          {tab === 2 && <Actions player={player} />}
+          {tab === 3 && <NationalTeam player={player} />}
+          {tab === 4 && <Rival player={player} />}
+          {tab === 5 && <Records player={player} />}
+          {tab === 6 && <Career player={player} />}
+          {tab === 7 && <Honors player={player} />}
+          {tab === 8 && <Timeline player={player} />}
+        </main>
+      </div>
+
+      <nav className="mobile-game-nav" aria-label="Mobile career screens">
+        {TABS.slice(0, 5).map((item, index) => (
+          <button key={item.label} className={tab === index ? 'active' : ''} onClick={() => selectTab(index)}>
+            <span>{item.icon}</span><small>{item.label === 'National Team' ? 'Nation' : item.label}</small>
+          </button>
+        ))}
       </nav>
 
-      <main className="p-4 md:p-8">
-        {tab === 0 && <Summary player={player} />}
-        {tab === 1 && <Skills player={player} focusId={focusId} setFocusId={setFocusId} />}
-        {tab === 2 && <Actions player={player} />}
-        {tab === 3 && <NationalTeam player={player} />}
-        {tab === 4 && <Rival player={player} />}
-        {tab === 5 && <Records player={player} />}
-        {tab === 6 && <Career player={player} />}
-        {tab === 7 && <Honors player={player} />}
-        {tab === 8 && <Timeline player={player} />}
-      </main>
-
-      {/* advance bar */}
-      {!player.retired && (
-        <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur">
-          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-            <div className="text-sm text-zinc-500 hidden sm:block">
-              {focusId ? <>Training: <span className="text-pitch-400">{TRAINING.find((t) => t.id === focusId)?.label}</span></>
-                : 'No training focus set — choose one in Development.'}
-            </div>
-            <button className="btn-primary px-8 py-3 flex-1 sm:flex-none" onClick={doAdvance}>
-              ▶ Advance year
-            </button>
+      {!player.retired ? (
+        <div className="advance-dock">
+          <div className="advance-context">
+            <span>Next season plan</span>
+            <strong>{focusId ? TRAINING.find((t) => t.id === focusId)?.label : 'No specialist focus selected'}</strong>
           </div>
+          <button className="advance-button" onClick={doAdvance}>
+            <span>ADVANCE YEAR</span>
+            <b>→</b>
+          </button>
         </div>
-      )}
-      {player.retired && (
-        <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur">
-          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-            <span className="text-zinc-400 text-sm">This career has ended.</span>
-            <button className="btn-ghost px-6 py-2.5" onClick={exit}>Back to menu</button>
-          </div>
+      ) : (
+        <div className="advance-dock retired-dock">
+          <div className="advance-context"><span>Final whistle</span><strong>This career has ended</strong></div>
+          <button className="advance-button" onClick={exit}><span>MAIN MENU</span><b>→</b></button>
         </div>
       )}
 
