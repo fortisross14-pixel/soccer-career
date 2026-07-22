@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; }
+body {
+  @apply bg-zinc-950 text-zinc-200 font-sans antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 50% -10%, rgba(34,197,94,0.08), transparent 60%);
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { @apply bg-zinc-800 rounded-full; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@layer components {
+  .card { @apply bg-zinc-900/60 border border-zinc-800 rounded-3xl backdrop-blur-sm; }
+  .eyebrow { @apply text-pitch-500 text-[11px] tracking-[2px] font-semibold uppercase; }
+  .stat-num { @apply font-mono font-semibold tracking-tight; }
+  .btn { @apply rounded-2xl font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-pitch-600 hover:bg-pitch-500 text-white; }
+  .btn-ghost { @apply btn bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200; }
+  .pill { @apply text-xs px-2.5 py-0.5 rounded-full border; }
+}
+
+/* pitch-stripe signature motif */
+.pitch-stripes {
+  background-image: repeating-linear-gradient(
+    90deg, rgba(34,197,94,0.05) 0 28px, transparent 28px 56px);
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; }
+}
