@@ -30,8 +30,13 @@ export default function Actions({ player }: { player: Player }) {
                 <div className="text-zinc-500 mt-1">{currentClub ? `${getCountry(currentClub.country).leagueName} · ${currentClub.country}` : 'No active club agreement'}</div>
                 <div className="flex flex-wrap gap-2 mt-4">
                   <RoleBadge role={player.role} />
-                  {currentClub?.continental !== 'none' && <span className="pill border-sky-500/30 bg-sky-500/10 text-sky-300">{currentClub.continental === 'CL' ? 'Champions League' : 'Europa League'}</span>}
-                  {player.age < 16 && <span className="pill border-amber-500/30 bg-amber-500/10 text-amber-200">Academy · {player.academyFocus ?? 'Balanced'} focus</span>}
+                  
+                  {currentClub && currentClub.continental !== 'none' && (
+            <span className="pill border-sky-500/30 bg-sky-500/10 text-sky-300">
+                {currentClub.continental === 'CL' ? 'Champions League' : 'Europa League'}
+          </span>
+)}
+                {player.age < 16 && <span className="pill border-amber-500/30 bg-amber-500/10 text-amber-200">Academy · {player.academyFocus ?? 'Balanced'} focus</span>}
                 </div>
               </div>
               <div className="text-right">
