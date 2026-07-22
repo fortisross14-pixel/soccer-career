@@ -27,6 +27,7 @@ const OBJECTIVES: { value: SeasonObjective; label: string; desc: string }[] = [
   { value: 'trophy', label: 'Win silverware', desc: 'Win any club trophy' },
   { value: 'international', label: 'National team', desc: 'Earn an international cap' },
   { value: 'transfer', label: 'Earn a move', desc: 'Attract a stronger or foreign club' },
+  { value: 'recover', label: 'Recover fitness', desc: 'Restore fitness, sacrificing performance and development' },
 ];
 
 export default function Actions({ player, focusId, setFocusId }: { player: Player; focusId: string | null; setFocusId: (id: string | null) => void }) {
@@ -93,10 +94,10 @@ export default function Actions({ player, focusId, setFocusId }: { player: Playe
             {player.offers.map((o, i) => {
               const country = getCountry(o.country);
               return <div key={`${o.clubId}-${o.source}`} className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 hover:border-pitch-700">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-2">{sourceLabel(o.source)}</div>
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-2">{player.age < 16 ? 'Academy invitation' : sourceLabel(o.source)}</div>
                 <div className="flex justify-between items-start"><div><div className="font-medium">{o.clubName}</div><div className="text-xs text-zinc-500">{country.leagueName} · {o.country}</div></div><span className="stat-num text-pitch-400 text-lg">{o.clubRating}</span></div>
-                <div className="flex flex-wrap gap-1.5 my-3"><RoleBadge role={o.role} />{o.continental !== 'none' && <span className="pill border-sky-500/30 bg-sky-500/10 text-sky-300">{o.continental === 'CL' ? 'Champions' : 'Europa'}</span>}<span className="pill border-zinc-700 text-zinc-400">{o.tier}</span></div>
-                <div className="flex justify-between items-center text-sm"><div><div className="stat-num text-zinc-100">{fmtMoney(o.wage)}<span className="text-xs text-zinc-500">/yr</span></div><div className="text-[11px] text-zinc-500">{o.years}-year deal</div></div><button className="btn-primary text-xs px-4 py-2" onClick={() => { sign(i); showToast(`Signed for ${o.clubName}.`); }}>Sign</button></div>
+                <div className="flex flex-wrap gap-1.5 my-3">{player.age < 16 ? <span className="pill border-pitch-500/30 bg-pitch-500/10 text-pitch-300">Focus: {o.academyFocus ?? 'Balanced'}</span> : <RoleBadge role={o.role} />}{o.continental !== 'none' && <span className="pill border-sky-500/30 bg-sky-500/10 text-sky-300">{o.continental === 'CL' ? 'Champions' : 'Europa'}</span>}<span className="pill border-zinc-700 text-zinc-400">{o.tier}</span></div>
+                <div className="flex justify-between items-center text-sm"><div><div className="stat-num text-zinc-100">{player.age < 16 ? 'Academy place' : <>{fmtMoney(o.wage)}<span className="text-xs text-zinc-500">/yr</span></>}</div><div className="text-[11px] text-zinc-500">{player.age < 16 ? 'Development pathway · no professional contract' : `${o.years}-year deal`}</div></div><button className="btn-primary text-xs px-4 py-2" onClick={() => { sign(i); showToast(`Signed for ${o.clubName}.`); }}>Sign</button></div>
               </div>;
             })}
           </div>

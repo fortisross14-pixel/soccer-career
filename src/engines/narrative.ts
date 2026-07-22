@@ -8,6 +8,7 @@ export function seasonNarrative(p: Player, season: SeasonOutput, overallBefore: 
   const trust = p.managerTrust ?? 55;
   const morale = p.morale ?? 70;
   const intensity = p.trainingIntensity ?? 'balanced';
+  const recoveryPlan = p.seasonObjective === 'recover';
 
   if (p.age < 16) {
     lines.push(pick([
@@ -16,6 +17,11 @@ export function seasonNarrative(p: Player, season: SeasonOutput, overallBefore: 
       'Progress came away from the spotlight as the foundations of a professional player took shape.',
     ]));
   }
+  if (recoveryPlan) lines.push(pick([
+    'The season was deliberately used to rebuild fitness. Sharpness and development were sacrificed to restore the body.',
+    'A recovery-first program reduced the player’s influence on the pitch, but restored much-needed physical reserves.',
+    'Performance ambitions were scaled back as the year focused on long-term fitness and injury prevention.',
+  ]));
   if (season.injured) lines.push(pick([
     'An injury limited development and interrupted the rhythm of the season.',
     'Time in the treatment room reduced both match exposure and training continuity.',
@@ -26,7 +32,7 @@ export function seasonNarrative(p: Player, season: SeasonOutput, overallBefore: 
     'Exceptional commitment on the training ground produced visible gains.',
     'The high-intensity program paid off this year, but it may be difficult to sustain forever.',
   ]));
-  else if (intensity === 'light') lines.push('A lighter workload protected fitness but produced more modest technical growth.');
+  else if (intensity === 'light' && !recoveryPlan) lines.push('A lighter workload protected fitness but produced more modest technical growth.');
 
   if (trust >= 78 && season.rating >= 7) lines.push(pick([
     'A strong understanding with the coach created confidence, freedom and consistent opportunities.',

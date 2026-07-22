@@ -41,6 +41,7 @@ export default function Summary({ player }: { player: Player }) {
 
         <div className="space-y-2.5 text-sm mt-5">
           <Row label={player.age < 16 ? 'Academy' : 'Club'} value={club.name} />
+          {player.age < 16 && <Row label="Academy focus" value={player.academyFocus ?? club.academyFocus ?? 'Balanced'} />}
           {player.rivalName && <Row label="Career rival" value={`${player.rivalName} · OVR ${player.rivalOverall ?? '—'}`} />}
           <Row label="Competition" value={club.tier === 'Youth' ? 'Youth League' : `${country.leagueName}${club.division === 2 ? ' 2' : ''}`} />
           <Row label="Squad role" value={<RoleBadge role={player.role} />} />
@@ -62,7 +63,7 @@ export default function Summary({ player }: { player: Player }) {
         <div className="eyebrow mb-4">Last season</div>
         {last ? (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {last.age < 16 ? <div className="rounded-2xl border border-pitch-500/20 bg-pitch-950/30 p-5 text-sm text-zinc-300">Academy season: development only. Matches, goals and assists begin counting after your first professional contract at age 16 or later.</div> : <><div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Stat label="Games" value={last.games} sub={last.clubName} />
               <Stat label="Goals" value={last.goals} accent />
               <Stat label="Assists" value={last.assists} accent />
@@ -74,6 +75,7 @@ export default function Summary({ player }: { player: Player }) {
               <Stat label="Career goals" value={player.totals.goals} />
               <Stat label="Career apps" value={player.totals.games} />
             </div>
+            </>}
             {(last.clubHonors.length > 0 || last.individualHonors.length > 0 || last.nationalHonors.length > 0) && (
               <div className="mt-5 pt-4 border-t border-zinc-800 flex flex-wrap gap-2">
                 {[...last.clubHonors, ...last.individualHonors, ...last.nationalHonors].map((h, i) => (

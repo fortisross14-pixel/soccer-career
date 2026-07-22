@@ -8,6 +8,7 @@ import {
 import { createPlayer } from '../engines/newgame';
 import { marketValue } from '../engines/transfers';
 import { playerOverall } from '../engines/overall';
+import { careerVerdict } from '../engines/narrative';
 import { saveToSlot, loadSlot, firstFreeSlot, addToHof } from './save';
 
 type Screen = 'home' | 'game';
@@ -135,10 +136,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const retire = () => {
     if (!player) return;
     const next: Player = JSON.parse(JSON.stringify(player));
+    const before = playerOverall(next);
     finalizeRetirement(next);
     addToHof(next);
     persist(next, slot);
     setPlayer(next);
+    const last = next.history[next.history.length - 1] ?? {
+      age: next.age, season: next.season, clubName: 'Career complete', clubId: '', role: next.role,
+      competition: 'Retirement', games: 0, goals: 0, assists: 0, rating: 0, leagueFinish: null,
+      leagueName: '', overall: before, capsThisYear: 0, intlGoals: 0,
+      clubHonors: [], individualHonors: [], nationalHonors: [],
+    };
+    setSummary({
+      seasonRecord: last, event: 'The final whistle has blown.', logs: [], overallBefore: before,
+      overallAfter: before, skillDeltas: {}, retired: true, narrative: [], worldHeadlines: [],
+      careerVerdict: careerVerdict(next),
+    });
   };
 
   return (

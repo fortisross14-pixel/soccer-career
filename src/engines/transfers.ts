@@ -39,11 +39,12 @@ export function wageFor(club: ClubDef, role: SquadRole, overall: number): number
  * A club only bids if the player fits between "prospect" and "clear upgrade".
  */
 export function generateOffers(p: Player, overall: number, scope: 'youth' | 'domestic' | 'international', source?: Offer['source']): Offer[] {
-  const target = overall * 0.62 + p.reputation * 0.38;
+  const youthScope = scope === 'youth' || p.age < 16;
+  const target = youthScope ? 65 + p.potentialCeiling * 22 : overall * 0.62 + p.reputation * 0.38;
   let pool: ClubDef[];
 
   if (scope === 'youth' || p.age < 16) {
-    pool = clubsInCountry(p.country).filter((c) => c.division === 2 || c.rating <= 74);
+    pool = clubsInCountry(p.country, 1);
   } else if (scope === 'domestic') {
     pool = clubsInCountry(p.country);
   } else {
@@ -52,7 +53,7 @@ export function generateOffers(p: Player, overall: number, scope: 'youth' | 'dom
 
   // interested clubs: rating within a band of the player's level
   const spread = clamp(6 + p.reputation / 12, 6, 14);
-  let interested = pool.filter((c) => {
+  let interested = youthScope ? pool.filter((c) => c.rating <= target + 9 && c.rating >= target - 18) : pool.filter((c) => {
     if (p.contract && c.id === p.contract.clubId) return false;
     return c.rating >= target - spread - 6 && c.rating <= target + spread;
   });
@@ -64,7 +65,7 @@ export function generateOffers(p: Player, overall: number, scope: 'youth' | 'dom
   }
 
   // how many offers — better reputation => more suitors
-  const maxOffers = clamp(Math.round(2 + (overall + p.reputation) / 40), 2, 7);
+  const maxOffers = youthScope ? clamp(3 + Math.round(p.potentialCeiling * 2), 3, 5) : clamp(Math.round(2 + (overall + p.reputation) / 40), 2, 7);
   const shuffled = interested.sort(() => Math.random() - 0.5).slice(0, maxOffers * 2);
 
   const offers: Offer[] = [];
@@ -84,11 +85,12 @@ export function generateOffers(p: Player, overall: number, scope: 'youth' | 'dom
       tier: club.tier,
       country: club.country,
       role,
-      wage: wageFor(club, role, overall),
+      wage: scope === 'youth' || p.age < 16 ? 0 : wageFor(club, role, overall),
       years: randInt(2, 5),
       continental: club.continental,
       international: scope === 'international',
       source: source ?? (scope === 'international' ? 'international-scout' : scope === 'domestic' ? 'domestic-scout' : 'automatic'),
+      academyFocus: scope === 'youth' || p.age < 16 ? club.academyFocus : undefined,
     });
   }
 
@@ -100,8 +102,8 @@ export function generateOffers(p: Player, overall: number, scope: 'youth' | 'dom
       offers.push({
         clubId: fallback.id, clubName: fallback.name, clubRating: fallback.rating,
         tier: fallback.tier, country: fallback.country, role,
-        wage: wageFor(fallback, role, overall), years: randInt(2, 3),
-        continental: fallback.continental, international: false, source: source ?? 'automatic',
+        wage: scope === 'youth' || p.age < 16 ? 0 : wageFor(fallback, role, overall), years: randInt(2, 3),
+        continental: fallback.continental, international: false, source: source ?? 'automatic', academyFocus: scope === 'youth' || p.age < 16 ? fallback.academyFocus : undefined,
       });
     }
   }

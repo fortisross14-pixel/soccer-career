@@ -37,7 +37,7 @@ export interface PositionDef {
 export type ClubTier = 'Elite' | 'Strong' | 'Mid' | 'Small' | 'Youth';
 export type ContinentalSpot = 'CL' | 'EL' | 'none';
 export type TrainingIntensity = 'light' | 'balanced' | 'intense';
-export type SeasonObjective = 'develop' | 'play' | 'perform' | 'trophy' | 'international' | 'transfer';
+export type SeasonObjective = 'develop' | 'play' | 'perform' | 'trophy' | 'international' | 'transfer' | 'recover';
 
 export interface ClubDef {
   id: string;
@@ -51,6 +51,7 @@ export interface ClubDef {
   wageFactor: number;
   continental: ContinentalSpot;
   division: 1 | 2;
+  academyFocus?: SkillCategory;
 }
 
 export interface CountryDef {
@@ -118,6 +119,7 @@ export interface SeasonRecord {
   // national
   capsThisYear: number;
   intlGoals: number;
+  intlAssists?: number;
   // honors earned this season (labels)
   clubHonors: string[];
   individualHonors: string[];
@@ -143,6 +145,19 @@ export interface Offer {
   continental: ContinentalSpot;
   international: boolean;
   source?: 'automatic' | 'domestic-scout' | 'international-scout' | 'transfer-request';
+  academyFocus?: SkillCategory;
+}
+
+export interface RivalSeason {
+  age: number;
+  season: number;
+  clubName: string;
+  overall: number;
+  games: number;
+  goals: number;
+  assists: number;
+  rating: number;
+  trophies: number;
 }
 
 export interface EventLogEntry {
@@ -152,11 +167,32 @@ export interface EventLogEntry {
   text: string;
 }
 
+
+export type NationalMatchType = 'Friendly' | 'World Cup Qualification' | 'Continental Qualification' | 'World Cup' | 'Continental Championship';
+
+export interface NationalMatch {
+  season: number;
+  age: number;
+  opponent: string;
+  competition: NationalMatchType;
+  stage: string;
+  result: string;
+  teamGoals: number;
+  opponentGoals: number;
+  started: boolean;
+  minutes: number;
+  goals: number;
+  assists: number;
+  rating: number | null;
+}
+
 export interface NationalCareer {
   debutAge: number | null;
   caps: number;
   goals: number;
+  assists?: number;
   status: string;
+  matches?: NationalMatch[];
 }
 
 export interface Player {
@@ -176,6 +212,9 @@ export interface Player {
   money: number; // career earnings
   traits: TraitDef['id'][];
   contract: Contract | null;
+  academyClubId?: string;
+  academyFocus?: SkillCategory;
+  professionalDebutAge?: number | null;
   role: SquadRole;
   national: NationalCareer;
   honors: {
@@ -183,7 +222,7 @@ export interface Player {
     national: Honor[];
     individual: Honor[];
   };
-  totals: { games: number; goals: number; assists: number; caps: number; intlGoals: number };
+  totals: { games: number; goals: number; assists: number; caps: number; intlGoals: number; intlAssists?: number };
   history: SeasonRecord[];
   log: EventLogEntry[];
   offers: Offer[];
@@ -211,6 +250,11 @@ export interface Player {
   careerDecisionScore?: number;
   rivalName?: string;
   rivalOverall?: number;
+  rivalCountry?: string;
+  rivalPosition?: PositionKey;
+  rivalClubName?: string;
+  rivalTotals?: { games: number; goals: number; assists: number; trophies: number };
+  rivalHistory?: RivalSeason[];
   worldHeadlines?: string[];
 }
 

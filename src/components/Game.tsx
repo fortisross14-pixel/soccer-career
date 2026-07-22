@@ -10,9 +10,12 @@ import Actions from './tabs/Actions';
 import Career from './tabs/Career';
 import Honors from './tabs/Honors';
 import Timeline from './tabs/Timeline';
+import Rival from './tabs/Rival';
+import NationalTeam from './tabs/NationalTeam';
+import Records from './tabs/Records';
 import YearSummary from './YearSummary';
 
-const TABS = ['Summary', 'Skills', 'Actions', 'Career', 'Honors', 'Timeline'] as const;
+const TABS = ['Overview', 'Development', 'Decisions', 'National Team', 'Rivalry', 'Records', 'Career', 'Honors', 'Timeline'] as const;
 
 export default function Game() {
   const { player, exit, advance, summary, clearSummary } = useGame();
@@ -30,9 +33,9 @@ export default function Game() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto pb-28">
+    <div className="app-shell max-w-7xl mx-auto pb-28">
       {/* header */}
-      <header className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-zinc-800">
+      <header className="game-header flex items-center justify-between px-5 md:px-8 pt-5 pb-4">
         <button className="flex items-center gap-3" onClick={exit}>
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pitch-500 to-pitch-700 grid place-items-center">
             <span className="text-xl">⚽</span>
@@ -55,7 +58,7 @@ export default function Game() {
       </header>
 
       {/* tabs */}
-      <nav className="px-6 pt-3 border-b border-zinc-800 pitch-stripes">
+      <nav className="game-nav px-4 md:px-8 pt-2">
         <div className="flex gap-1 overflow-x-auto">
           {TABS.map((t, i) => (
             <button
@@ -69,13 +72,16 @@ export default function Game() {
         </div>
       </nav>
 
-      <main className="p-6">
+      <main className="p-4 md:p-8">
         {tab === 0 && <Summary player={player} />}
         {tab === 1 && <Skills player={player} />}
         {tab === 2 && <Actions player={player} focusId={focusId} setFocusId={setFocusId} />}
-        {tab === 3 && <Career player={player} />}
-        {tab === 4 && <Honors player={player} />}
-        {tab === 5 && <Timeline player={player} />}
+        {tab === 3 && <NationalTeam player={player} />}
+        {tab === 4 && <Rival player={player} />}
+        {tab === 5 && <Records player={player} />}
+        {tab === 6 && <Career player={player} />}
+        {tab === 7 && <Honors player={player} />}
+        {tab === 8 && <Timeline player={player} />}
       </main>
 
       {/* advance bar */}

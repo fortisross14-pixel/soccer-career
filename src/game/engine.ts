@@ -12,6 +12,7 @@ import { simulateNational } from '../engines/national';
 import { generateOffers, marketValue, wageFor } from '../engines/transfers';
 import { computeLegacy } from '../engines/legacy';
 import { careerVerdict, seasonNarrative, worldHeadlines } from '../engines/narrative';
+import { advanceRival } from '../engines/rival';
 
 export const MAX_AGE = 40;
 
@@ -33,7 +34,7 @@ export function clone(p: Player): Player {
 
 export function currentClub(p: Player) {
   if (p.contract && CLUB_MAP[p.contract.clubId]) return CLUB_MAP[p.contract.clubId];
-  return youthClub(p.country);
+  return youthClub(p.country, p.academyClubId);
 }
 
 export interface YearSummary {
@@ -106,22 +107,30 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
   nat.nationalHonors.forEach((h) => applyHonor(p.honors.national, h));
 
   // ---- 7. totals, reputation, money ----
-  p.totals.games += season.games;
-  p.totals.goals += season.goals;
-  p.totals.assists += season.assists;
+  const isProfessionalSeason = Boolean(p.contract) && p.age >= 16;
+  if (isProfessionalSeason) {
+    p.totals.games += season.games;
+    p.totals.goals += season.goals;
+    p.totals.assists += season.assists;
+  }
   p.totals.caps += nat.caps;
   p.totals.intlGoals += nat.goals;
+  p.totals.intlAssists = (p.totals.intlAssists ?? 0) + nat.assists;
   p.national.caps += nat.caps;
   p.national.goals += nat.goals;
+  p.national.assists = (p.national.assists ?? 0) + nat.assists;
 
-  p.reputation = clamp(p.reputation + awards.reputationGain, 5, 100);
+  const repResistance = p.reputation >= 95 ? 0.08 : p.reputation >= 90 ? 0.18 : p.reputation >= 80 ? 0.35 : p.reputation >= 65 ? 0.6 : 0.82;
+  const achievementCeiling = awards.wonBallon ? 100 : p.honors.individual.some((h) => h.label.includes("Ballon")) ? 97 : season.clubHonors.some((h) => h.includes('Champions')) || nat.nationalHonors.some((h) => h.includes('World Cup')) ? 94 : 89;
+  p.reputation = clamp(p.reputation + awards.reputationGain * repResistance, 5, achievementCeiling);
 
   // Persistent player-state consequences. Performance changes trust; planning changes fitness.
   const objective = p.seasonObjective ?? 'develop';
   const performanceTrust = season.rating >= 7.4 ? 7 : season.rating >= 6.8 ? 2 : -6;
   p.managerTrust = clamp((p.managerTrust ?? 55) + performanceTrust + (season.injured ? -2 : 0), 0, 100);
   const intensity = p.trainingIntensity ?? 'balanced';
-  p.fitness = clamp((p.fitness ?? 80) + (intensity === 'light' ? 8 : intensity === 'intense' ? -10 : 1) + (season.injured ? -12 : 0), 20, 100);
+  const recoveryFitnessGain = objective === 'recover' ? 30 : 0;
+  p.fitness = clamp((p.fitness ?? 80) + recoveryFitnessGain + (intensity === 'light' ? 8 : intensity === 'intense' ? -10 : 1) + (season.injured ? -12 : 0), 20, 100);
   if (season.injured) p.injurySeasons = (p.injurySeasons ?? 0) + 1;
   if (intensity === 'intense') p.intenseTrainingYears = (p.intenseTrainingYears ?? 0) + 1;
 
@@ -139,15 +148,16 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     clubId: club.id,
     role: season.role,
     competition: season.competition,
-    games: season.games,
-    goals: season.goals,
-    assists: season.assists,
-    rating: season.rating,
+    games: isProfessionalSeason ? season.games : 0,
+    goals: isProfessionalSeason ? season.goals : 0,
+    assists: isProfessionalSeason ? season.assists : 0,
+    rating: isProfessionalSeason ? season.rating : 0,
     leagueFinish: club.tier === 'Youth' ? null : season.leagueFinish,
     leagueName: season.leagueName,
     overall: seasonOverall,
     capsThisYear: nat.caps,
     intlGoals: nat.goals,
+    intlAssists: nat.assists,
     clubHonors: season.clubHonors,
     individualHonors: [...awards.individualHonors, ...nat.individualHonors],
     nationalHonors: nat.nationalHonors,
@@ -162,6 +172,9 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     clubRating: club.rating,
     minutesFactor: season.minutesFactor,
     intensity: p.trainingIntensity ?? 'balanced',
+    recoverySeason: objective === 'recover',
+    academySeason: p.age < 16 || !p.contract,
+    academyFocus: p.academyFocus ?? club.academyFocus,
   });
   roundSkills(p);
 
@@ -206,11 +219,12 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
     objective === 'perform' ? season.rating >= 7.2 :
     objective === 'trophy' ? season.clubHonors.length > 0 :
     objective === 'international' ? nat.caps > 0 :
+    objective === 'recover' ? (p.fitness ?? 0) >= 82 :
     p.offers.some((o) => o.clubRating > club.rating || o.international);
   if (objectiveMet) {
     p.morale = clamp((p.morale ?? 70) + 8, 0, 100);
     p.managerTrust = clamp((p.managerTrust ?? 55) + 5, 0, 100);
-    p.reputation = clamp(p.reputation + 2, 5, 100);
+    p.reputation = clamp(p.reputation + (p.reputation < 80 ? 2 : 0.5), 5, p.reputation >= 95 ? 97 : 92);
     yearLogs.push(`✅ Season objective achieved: ${objectiveLabel(objective)}.`);
   } else {
     p.morale = clamp((p.morale ?? 70) - 7, 0, 100);
@@ -218,6 +232,7 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
   }
 
   const narrative = seasonNarrative(p, season, overallBefore, overallAfter, objectiveMet);
+  advanceRival(p);
   const headlines = worldHeadlines(p, seasonRecord);
   seasonRecord.narrative = narrative;
   seasonRecord.worldHeadlines = headlines;
@@ -251,7 +266,7 @@ export function advanceYear(input: Player, trainingFocus: SkillKey[] | null): { 
 }
 
 function objectiveLabel(o: SeasonObjective): string {
-  return ({ develop: 'Improve your overall', play: 'Play 30 matches', perform: 'Average 7.2+', trophy: 'Win a trophy', international: 'Earn an international cap', transfer: 'Attract a better move' } as Record<SeasonObjective, string>)[o];
+  return ({ develop: 'Improve your overall', play: 'Play 30 matches', perform: 'Average 7.2+', trophy: 'Win a trophy', international: 'Earn an international cap', transfer: 'Attract a better move', recover: 'Recover fitness' } as Record<SeasonObjective, string>)[o];
 }
 
 export function setSeasonPlan(p: Player, objective: SeasonObjective, intensity: TrainingIntensity): Player {
@@ -277,14 +292,26 @@ export function signOffer(p: Player, offerIndex: number): Player {
   const next = clone(p);
   const offer = next.offers[offerIndex];
   if (!offer) return next;
+  if (next.age < 16) {
+    next.academyClubId = offer.clubId;
+    next.academyFocus = offer.academyFocus;
+    next.contract = null;
+    next.role = 'youth';
+    next.offers = [];
+    next.searchedThisYear = true;
+    next.careerDecisionScore = (next.careerDecisionScore ?? 0) + 1;
+    log(next, 'transfer', `Joined ${offer.clubName} academy — development focus: ${offer.academyFocus ?? 'Balanced'}.`);
+    return next;
+  }
   next.contract = { clubId: offer.clubId, wage: offer.wage, yearsLeft: offer.years };
+  next.professionalDebutAge ??= next.age;
   next.role = offer.role;
   next.offers = [];
   next.searchedThisYear = true;
   next.clubContinental = offer.continental;
   const currentRating = currentClub(p).rating;
   next.careerDecisionScore = (next.careerDecisionScore ?? 0) + (offer.clubRating >= currentRating - 2 ? 2 : -1) + (offer.role === 'starter' || offer.role === 'star' ? 1 : -1);
-  log(next, 'transfer', `Signed for ${offer.clubName} (${offer.role}, ${offer.years}yr).`);
+  log(next, 'transfer', `Signed your first professional contract with ${offer.clubName} (${offer.role}, ${offer.years}yr).`);
   return next;
 }
 

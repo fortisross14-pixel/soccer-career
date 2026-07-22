@@ -96,7 +96,9 @@ export function simulateSeason(p: Player, club: ClubDef, overall: number): Seaso
   const minutesFactor = clamp(games / 42, 0.1, 1);
 
   // --- goals & assists ---
-  const form = clamp(0.78 + noise() * 0.4 + (morale - 60) / 220 + (fitness - 70) / 300, 0.4, 1.5);
+  const recoveryPlan = p.seasonObjective === 'recover';
+  const recoveryPerformanceFactor = recoveryPlan ? 0.78 : 1;
+  const form = clamp((0.78 + noise() * 0.4 + (morale - 60) / 220 + (fitness - 70) / 300) * recoveryPerformanceFactor, 0.4, 1.5);
   const roleScoring = role === 'star' ? 1.12 : role === 'starter' ? 1.0 : 0.86;
   const gThreat = clamp(attackIndex(p) / 68, 0.2, 2.0);
   const cThreat = clamp(creationIndex(p) / 68, 0.2, 2.0);
@@ -111,6 +113,7 @@ export function simulateSeason(p: Player, club: ClubDef, overall: number): Seaso
   // --- match rating ---
   const contrib = (goals + assists) / Math.max(6, games);
   let rating = 6.35 + (overall - club.rating) * 0.02 + contrib * 1.6 + noise() * 0.35;
+  if (recoveryPlan) rating -= 0.18;
   if (overall >= 85) rating += 0.25;
   if (overall >= 90) rating += 0.25;
   rating = clamp(round1(rating), 5.6, 9.6);

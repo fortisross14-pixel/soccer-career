@@ -26,7 +26,18 @@ function migratePlayer(p: Player): Player {
   p.careerDecisionScore ??= 0;
   p.rivalName ??= 'Alex Vega';
   p.rivalOverall ??= 45;
+  p.rivalCountry ??= p.country;
+  p.rivalPosition ??= p.position;
+  p.rivalClubName ??= `${p.rivalCountry} Youth Academy`;
+  p.rivalTotals ??= { games: 0, goals: 0, assists: 0, trophies: 0 };
+  p.rivalHistory ??= [];
   p.worldHeadlines ??= [];
+  p.academyClubId ??= undefined;
+  p.academyFocus ??= undefined;
+  p.professionalDebutAge ??= p.history.find((h) => h.age >= 16 && h.games > 0)?.age ?? null;
+  p.national.matches ??= [];
+  p.national.assists ??= 0;
+  p.totals.intlAssists ??= 0;
   p.offers = (p.offers ?? []).map((o) => ({ ...o, source: o.source ?? (o.international ? 'international-scout' : 'automatic') }));
   return p;
 }
