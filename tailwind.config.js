@@ -4,21 +4,28 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Space Grotesk"', 'Inter', 'sans-serif'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        display: ['"Barlow Condensed"', 'sans-serif'],
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
+        mono: ['"Roboto Mono"', 'ui-monospace', 'monospace'],
       },
       colors: {
-        pitch: {
-          50: '#ecfdf3', 400: '#4ade80', 500: '#22c55e', 600: '#16a34a',
-          700: '#15803d', 800: '#166534', 900: '#14532d', 950: '#052e16',
-        },
+        night: 'var(--night)',
+        panel: 'var(--panel)',
+        panel2: 'var(--panel-2)',
+        line: 'var(--line)',
+        muted: 'var(--muted)',
+        cream: 'var(--cream)',
+        lime: 'var(--lime)',
+        mint: 'var(--mint)',
+        orange: 'var(--orange)',
+        danger: 'var(--red)',
+        sky: { DEFAULT: 'var(--blue)', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9' },
       },
       keyframes: {
-        'fade-up': { '0%': { opacity: '0', transform: 'translateY(6px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        'fade-up': { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
         'pop-in': { '0%': { opacity: '0', transform: 'scale(0.94)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
       },
-      animation: { 'fade-up': 'fade-up 0.35s ease-out', 'pop-in': 'pop-in 0.25s ease-out' },
+      animation: { 'fade-up': 'fade-up 0.3s ease-out both', 'pop-in': 'pop-in 0.22s ease-out both' },
     },
   },
   plugins: [],

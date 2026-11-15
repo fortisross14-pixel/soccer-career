@@ -1,220 +1,101 @@
-import { createContext, useContext, useState } from 'react';
-import type { ReactNode } from 'react';
-import type { Player, PositionKey, SkillKey, SeasonObjective, TrainingIntensity, SeasonEvent, TacticalRole, AgentType } from './types';
-import {
-  advanceYear, finalizeRetirement, signOffer, searchForClubs,
-  signSponsorship, requestContract, requestTransfer, setSeasonPlan, type YearSummary,
-} from './engine';
-import { createPlayer } from '../engines/newgame';
-import { marketValue } from '../engines/transfers';
-import { playerOverall } from '../engines/overall';
-import { careerVerdict } from '../engines/narrative';
-import { saveToSlot, loadSlot, firstFreeSlot, addToHof } from './save';
-import { generateSeasonEvents, applySeasonEventChoice } from '../engines/events';
-
-type Screen = 'home' | 'game';
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import type { CardInstance, Career, MonthReport, PositionKey } from './types';
+import { createCareer } from '../engines/career';
+import { playMonth as enginePlayMonth, canPlay, finalizeRetirement, isWindow } from '../engines/month';
+import { rngState, seedRng } from '../engines/util';
+import { addToHof, firstFreeSlot, loadSlot, saveToSlot } from './save';
 
 interface Ctx {
-  screen: Screen;
-  player: Player | null;
+  career: Career | null;
   slot: number | null;
-  summary: YearSummary | null;
-  pendingEvents: SeasonEvent[];
-  currentEvent: SeasonEvent | null;
-  setScreen: (s: Screen) => void;
-  startNew: (name: string, country: string, position: PositionKey, overwriteSlot?: number) => boolean;
+  newCareer: (name: string, country: string, position: PositionKey) => boolean;
   load: (slot: number) => void;
   exit: () => void;
-  advance: (focus: SkillKey[] | null) => void;
-  clearSummary: () => void;
-  sign: (i: number) => void;
-  search: (scope: 'domestic' | 'international') => void;
-  sponsor: () => number;
-  renegotiate: (priority?: 'wage' | 'role' | 'security') => { ok: boolean; msg: string };
-  retire: () => void;
-  setPlan: (objective: SeasonObjective, intensity: TrainingIntensity) => void;
-  transferRequest: () => number;
-  loanRequest: () => number;
-  targetedSearch: (country: string) => number;
-  resolveEvent: (choiceId: string) => void;
-  setTacticalRole: (role: TacticalRole) => void;
-  setAgent: (agent: AgentType) => void;
+  /** run an engine mutation on a copy of the career, then persist it */
+  act: <T>(fn: (c: Career) => T) => T;
+  play: (toEvent: boolean) => void;
+  reports: MonthReport[] | null;
+  closeReports: () => void;
+  matchId: string | null;
+  openMatch: (id: string | null) => void;
+  reveal: CardInstance[] | null;
+  setReveal: (cards: CardInstance[] | null) => void;
 }
 
-const GameContext = createContext<Ctx | null>(null);
+const GameCtx = createContext<Ctx | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
-  const [screen, setScreen] = useState<Screen>('home');
-  const [player, setPlayer] = useState<Player | null>(null);
+  const [career, setCareer] = useState<Career | null>(null);
   const [slot, setSlot] = useState<number | null>(null);
-  const [summary, setSummary] = useState<YearSummary | null>(null);
-  const [pendingEvents, setPendingEvents] = useState<SeasonEvent[]>([]);
-  const [eventPlayer, setEventPlayer] = useState<Player | null>(null);
-  const [pendingFocus, setPendingFocus] = useState<SkillKey[] | null>(null);
+  const [reports, setReports] = useState<MonthReport[] | null>(null);
+  const [matchId, setMatchId] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<CardInstance[] | null>(null);
+  const ref = useRef<Career | null>(null);
+  const slotRef = useRef<number | null>(null);
 
-  const persist = (p: Player, s: number | null) => {
-    const target = s ?? firstFreeSlot();
-    if (!target) return;
-    saveToSlot(target, p);
-    setSlot(target);
+  const commit = (c: Career) => {
+    if (c.retired && !c.legacy) { finalizeRetirement(c); addToHof(c); }
+    ref.current = c;
+    setCareer(c);
+    if (slotRef.current) saveToSlot(slotRef.current, c);
   };
 
-  const startNew = (name: string, country: string, position: PositionKey, overwriteSlot?: number): boolean => {
-    const target = overwriteSlot ?? firstFreeSlot();
-    if (!target) return false;
-    const p = createPlayer(name, country, position);
-    p.marketValue = marketValue(playerOverall(p), p.age, p.reputation);
-    saveToSlot(target, p);
-    setPlayer(p);
-    setSlot(target);
-    setScreen('game');
+  const act = useCallback(<T,>(fn: (c: Career) => T): T => {
+    if (!ref.current) throw new Error('No career');
+    const c = structuredClone(ref.current);
+    seedRng(c.rng);
+    const out = fn(c);
+    c.rng = rngState();
+    commit(c);
+    return out;
+  }, []);
+
+  const newCareer = (name: string, country: string, position: PositionKey) => {
+    const free = firstFreeSlot();
+    if (!free) return false;
+    const c = createCareer(name, country, position);
+    slotRef.current = free;
+    setSlot(free);
+    commit(c);
     return true;
   };
 
-  const load = (s: number) => {
-    const p = loadSlot(s);
-    if (!p) return;
-    setPlayer(p);
-    setSlot(s);
-    setScreen('game');
+  const load = (n: number) => {
+    const c = loadSlot(n);
+    if (!c) return;
+    slotRef.current = n;
+    setSlot(n);
+    ref.current = c;
+    setCareer(c);
   };
 
-  const exit = () => {
-    if (player && slot) saveToSlot(slot, player);
-    setPlayer(null);
-    setSlot(null);
-    setSummary(null);
-    setScreen('home');
-  };
+  const exit = () => { ref.current = null; slotRef.current = null; setCareer(null); setSlot(null); setReports(null); setMatchId(null); };
 
-  const finishAdvance = (base: Player, focus: SkillKey[] | null) => {
-    const { player: next, summary: sum } = advanceYear(base, focus);
-    if (sum.retired) addToHof(next);
-    persist(next, slot); setPlayer(next); setSummary(sum); setPendingEvents([]); setEventPlayer(null); setPendingFocus(null);
-  };
-
-  const advance = (focus: SkillKey[] | null) => {
-    if (!player || player.retired || pendingEvents.length) return;
-    const events = generateSeasonEvents(player);
-    setPendingFocus(focus); setEventPlayer(player); setPendingEvents(events);
-    if (!events.length) finishAdvance(player, focus);
-  };
-
-  const resolveEvent = (choiceId: string) => {
-    if (!eventPlayer || !pendingEvents.length) return;
-    const nextPlayer = applySeasonEventChoice(eventPlayer, pendingEvents[0], choiceId);
-    const remaining = pendingEvents.slice(1);
-    setEventPlayer(nextPlayer); setPendingEvents(remaining);
-    if (!remaining.length) finishAdvance(nextPlayer, pendingFocus);
-  };
-
-  const clearSummary = () => setSummary(null);
-
-  const sign = (i: number) => {
-    if (!player) return;
-    const next = signOffer(player, i);
-    persist(next, slot);
-    setPlayer(next);
-  };
-
-  const search = (scope: 'domestic' | 'international') => {
-    if (!player) return;
-    const next = searchForClubs(player, scope);
-    persist(next, slot);
-    setPlayer(next);
-  };
-
-  const sponsor = (): number => {
-    if (!player) return 0;
-    const { player: next, amount } = signSponsorship(player);
-    persist(next, slot);
-    setPlayer(next);
-    return amount;
-  };
-
-  const renegotiate = (priority: 'wage' | 'role' | 'security' = 'wage') => {
-    if (!player) return { ok: false, msg: 'No player.' };
-    const { player: next, ok, msg } = requestContract(player, priority);
-    persist(next, slot);
-    setPlayer(next);
-    return { ok, msg };
-  };
-
-
-  const setPlan = (objective: SeasonObjective, intensity: TrainingIntensity) => {
-    if (!player) return;
-    const next = setSeasonPlan(player, objective, intensity);
-    persist(next, slot);
-    setPlayer(next);
-  };
-
-  const loanRequest = (): number => {
-    if (!player || player.age < 16 || player.loanRequestedThisYear) return 0;
-    const next = clonePlayer(player);
-    const offers = searchForClubs(next, 'domestic').offers.slice(0,3).map(o => ({...o, years:1, loan:true, source:'loan-request' as const, wage:Math.round(o.wage*0.45)}));
-    next.offers = [...next.offers.filter(o=>!o.loan), ...offers]; next.loanRequestedThisYear = true;
-    persist(next, slot); setPlayer(next); return offers.length;
-  };
-
-  const targetedSearch = (country: string): number => {
-    if (!player || player.age < 18) return 0;
-    const next = searchForClubs(player, 'international');
-    const offers = next.offers.filter(o=>o.country===country).map(o=>({...o,source:'targeted-search' as const}));
-    const merged = offers.length ? offers : next.offers.slice(0,2).map(o=>({...o,source:'targeted-search' as const}));
-    const updated = clonePlayer(player); updated.offers=[...player.offers,...merged].filter((o,i,a)=>a.findIndex(x=>x.clubId===o.clubId)===i);
-    updated.searchedInternationalThisYear=true; persist(updated,slot); setPlayer(updated); return merged.length;
-  };
-
-  const setTacticalRole = (role: TacticalRole) => { if (!player) return; const next=clonePlayer(player); next.tacticalRole=role; persist(next,slot); setPlayer(next); };
-  const setAgent = (agent: AgentType) => { if (!player) return; const next=clonePlayer(player); next.agentType=agent; persist(next,slot); setPlayer(next); };
-
-  const transferRequest = (): number => {
-    if (!player) return 0;
-    const { player: next, count } = requestTransfer(player);
-    persist(next, slot);
-    setPlayer(next);
-    return count;
-  };
-
-  const retire = () => {
-    if (!player) return;
-    const next: Player = JSON.parse(JSON.stringify(player));
-    const before = playerOverall(next);
-    finalizeRetirement(next);
-    addToHof(next);
-    persist(next, slot);
-    setPlayer(next);
-    const last = next.history[next.history.length - 1] ?? {
-      age: next.age, season: next.season, clubName: 'Career complete', clubId: '', role: next.role,
-      competition: 'Retirement', games: 0, goals: 0, assists: 0, rating: 0, leagueFinish: null,
-      leagueName: '', overall: before, capsThisYear: 0, intlGoals: 0,
-      clubHonors: [], individualHonors: [], nationalHonors: [],
-    };
-    setSummary({
-      seasonRecord: last, event: 'The final whistle has blown.', logs: [], overallBefore: before,
-      overallAfter: before, skillDeltas: {}, retired: true, narrative: [], worldHeadlines: [],
-      careerVerdict: careerVerdict(next),
+  const play = (toEvent: boolean) => {
+    const out = act((c) => {
+      const list: MonthReport[] = [];
+      const packsAtStart = c.packs.length;
+      for (let i = 0; i < (toEvent ? 12 : 1); i++) {
+        if (canPlay(c)) break;
+        const r = enginePlayMonth(c);
+        list.push(r);
+        if (c.retired || c.decisions.length || r.seasonEnd || isWindow(c.month) || (packsAtStart < 6 && c.packs.length >= 6)) break;
+      }
+      return list;
     });
+    if (out.length) setReports(out);
   };
-
-  const clonePlayer = (p: Player): Player => JSON.parse(JSON.stringify(p));
 
   return (
-    <GameContext.Provider
-      value={{
-        screen, player, slot, summary, pendingEvents, currentEvent: pendingEvents[0] ?? null, setScreen,
-        startNew, load, exit, advance, clearSummary,
-        sign, search, sponsor, renegotiate, retire, setPlan, transferRequest, loanRequest, targetedSearch, resolveEvent, setTacticalRole, setAgent,
-      }}
-    >
+    <GameCtx.Provider value={{ career, slot, newCareer, load, exit, act, play, reports, closeReports: () => setReports(null), matchId, openMatch: setMatchId, reveal, setReveal }}>
       {children}
-    </GameContext.Provider>
+    </GameCtx.Provider>
   );
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useGame(): Ctx {
-  const ctx = useContext(GameContext);
-  if (!ctx) throw new Error('useGame must be used within GameProvider');
-  return ctx;
+  const v = useContext(GameCtx);
+  if (!v) throw new Error('useGame outside provider');
+  return v;
 }

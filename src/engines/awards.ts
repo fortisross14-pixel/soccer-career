@@ -1,125 +1,129 @@
-import type { ClubDef, Player } from '../game/types';
+import type { Career, Honor } from '../game/types';
+import { CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
-import { clamp, chance, noise } from './util';
-import type { SeasonOutput } from './season';
+import { sortedTable, tablePosition } from './calendar';
+import { addPack } from './cards';
+import { playerOverall } from './overall';
+import { chance, clamp, noise } from './util';
 
-export interface AwardsOutput {
-  individualHonors: string[];
-  logs: string[];
-  reputationGain: number;
-  wonBallon: boolean;
+export function addHonor(list: Honor[], label: string) {
+  const h = list.find((x) => x.label === label);
+  if (h) h.count++;
+  else list.push({ label, count: 1 });
 }
 
-/**
- * Awards compare the player against a simulated elite field, not merely a
- * fixed minimum. Under-21 players can still win senior awards, but only after
- * a genuinely historic season; otherwise their route is Best Young Player.
- */
-export function decideAwards(p: Player, club: ClubDef, overall: number, s: SeasonOutput): AwardsOutput {
-  const country = getCountry(club.country);
+export function repCeiling(c: Career): number {
+  const has = (s: string) => [...c.honors.individual, ...c.honors.club, ...c.honors.national].some((h) => h.label.includes(s));
+  if (has("Ballon d'Or")) return 99;
+  if (has('World Cup Winner') || has('Champions Cup Winner') || has('Libertadores Winner')) return 95;
+  return 91;
+}
+
+export function gainReputation(c: Career, amount: number) {
+  const p = c.player;
+  const res = p.reputation >= 92 ? 0.12 : p.reputation >= 82 ? 0.3 : p.reputation >= 65 ? 0.55 : 0.85;
+  const pr = 1 + p.staff.reduce((s, id) => s + (id === 'st-pr' ? 0.4 : 0), 0);
+  const delta = amount > 0 ? amount * res * pr : amount;
+  p.reputation = clamp(p.reputation + delta, 0, Math.max(p.reputation, repCeiling(c)));
+}
+
+/** end of the domestic season (after May): titles, qualification, league awards */
+export function endLeagueSeason(c: Career): string[] {
+  const s = c.season;
+  if (!s || s.ended) return [];
+  s.ended = true;
+  const news: string[] = [];
+  const pos = tablePosition(s);
+  const n = s.table.length;
+  const country = getCountry(s.country);
+  const st = s.stats;
+  const p = c.player;
+  const ovr = playerOverall(p);
+
+  if (pos === 1) { s.honors.push(`${s.leagueName} Title`); news.push(`🏆 ${s.clubName} are ${s.leagueName} champions!`); }
+  else news.push(`${s.clubName} finish ${ordinal(pos)} in the ${s.leagueName}.`);
+
+  // next season's continental place for this club
+  const clKey = s.division === 1 ? (pos <= Math.max(1, Math.round(n / 4)) ? 'CL' : pos <= Math.round(n / 2.4) ? 'EL' : 'none') : 'none';
+  c.qualified = { clubId: s.clubId, key: clKey };
+  if (clKey !== 'none') news.push(`Qualified for next season's ${clKey === 'CL' ? 'top' : 'second-tier'} continental competition.`);
+
+  // league awards (based on league stats only)
+  const leagueGames = s.rounds.length;
+  const scale = leagueGames / 34;
   const rep = country.leagueRep;
-  const honors: string[] = [];
-  const logs: string[] = [];
-  const isStarter = s.role === 'star' || s.role === 'starter';
-  const topFlight = club.division === 1 && club.tier !== 'Youth';
-  const under21 = p.age < 21;
-  const eliteLeague = rep >= 86;
+  const avg = st.leagueRated ? st.leagueRatingSum / st.leagueRated : 0;
+  const regular = st.leagueApps >= leagueGames * 0.55;
+  const topFlight = s.division === 1;
+  const awards: string[] = [];
+  const bootLine = Math.round((17 + (rep - 68) * 0.2 + noise() * 2.5) * scale);
+  const assistLine = Math.round((11 + (rep - 68) * 0.12 + noise() * 1.5) * scale);
+  if (st.leagueGoals >= bootLine && st.leagueGoals >= 8) awards.push(`${s.leagueName} Golden Boot`);
+  if (st.leagueAssists >= assistLine && st.leagueAssists >= 6) awards.push(`${s.leagueName} Playmaker`);
+  if (regular && avg >= 7.25 && chance(0.65)) awards.push('Team of the Season');
+  if (regular && avg >= 7.55 && pos <= 3 && topFlight && ovr >= rep - 6 && chance(0.55)) awards.push(`${s.leagueName} Player of the Season`);
+  if (p.age <= 21 && st.leagueApps >= leagueGames * 0.45 && avg >= 7.0 && chance(0.6)) awards.push('Young Player of the Season');
+  if (p.position === 'GK' && regular && avg >= 7.15 && st.cleanSheets >= leagueGames * 0.3 && chance(0.6)) awards.push(`${s.leagueName} Golden Glove`);
+  if (s.contKey !== 'none' && st.contGoals >= 7) awards.push(`${s.contName} Top Scorer`);
+  s.awards.push(...awards);
+  for (const a of awards) { addHonor(c.honors.individual, a); addPack(c, 'silver', a); news.push(`⭐ ${a}`); }
 
-  // These represent the output of the best established specialist elsewhere
-  // in the league. Elite competitions should almost always have a serious star.
-  const simulatedTopScorer = Math.round(17 + Math.max(0, rep - 68) * 0.24 + noise() * 2.2);
-  const simulatedTopCreator = Math.round(11 + Math.max(0, rep - 68) * 0.15 + noise() * 1.4);
+  const trophies = s.honors.length;
+  for (const h of s.honors) { addHonor(c.honors.club, h); addPack(c, 'gold', h); }
+  gainReputation(c, trophies * 2 + awards.length * 2.5 + (avg - 6.8) * 4);
+  c.log.unshift({ year: c.year, month: c.month, kind: 'trophy', text: `Season ends: ${s.clubName} ${ordinal(pos)} in ${s.leagueName}. ${trophies ? `Trophies: ${s.honors.join(', ')}.` : ''}` });
+  void sortedTable;
+  void CLUB_MAP;
+  return news;
+}
 
-  if (topFlight && isStarter) {
-    const seniorGoalLine = simulatedTopScorer + (under21 ? (eliteLeague ? 5 : 3) : 0);
-    const seniorAssistLine = simulatedTopCreator + (under21 ? (eliteLeague ? 4 : 3) : 0);
-    const youngSeniorRating = under21 ? 7.65 : 0;
-
-    if (
-      s.goals >= seniorGoalLine &&
-      (!under21 || s.rating >= youngSeniorRating) &&
-      (p.position === 'ST' || p.position === 'W' || p.position === 'AM')
-    ) {
-      honors.push(`${country.leagueName} Golden Boot`);
-      logs.push(`⭐ Won the ${country.leagueName} Golden Boot with ${s.goals} goals, outperforming the league's established stars.`);
-    }
-
-    if (s.assists >= seniorAssistLine && (!under21 || s.rating >= youngSeniorRating)) {
-      honors.push(`${country.leagueName} Playmaker`);
-      logs.push(`⭐ Led the league with ${s.assists} assists against an elite field of creators.`);
-    }
-
-    const gloveRating = under21 ? 7.7 : 7.25;
-    const gloveOverall = under21 ? rep - 1 : rep - 6;
-    if (p.position === 'GK' && s.rating >= gloveRating && overall >= gloveOverall) {
-      if (chance(under21 ? 0.28 : 0.4)) {
-        honors.push(`${country.leagueName} Golden Glove`);
-        logs.push('⭐ Named the league\'s best goalkeeper.');
-      }
-    }
-
-    const totsRating = under21 ? 7.75 : 7.35;
-    const totsOverall = under21 ? rep - 2 : rep - 8;
-    if (s.rating >= totsRating && overall >= totsOverall && (!under21 || s.games >= 32)) {
-      if (chance(under21 ? 0.35 : 0.5)) {
-        honors.push('Team of the Season');
-        logs.push('⭐ Selected in the Team of the Season.');
-      }
-    }
-
-    const mvpRating = under21 ? 8.05 : 7.7;
-    const mvpOverall = under21 ? rep + 1 : rep - 3;
-    const mvpOutput = under21 ? s.goals + s.assists >= 28 : true;
-    if (s.rating >= mvpRating && overall >= mvpOverall && s.clubHonors.length > 0 && mvpOutput) {
-      if (chance(under21 ? 0.22 : 0.45)) {
-        honors.push(`${country.leagueName} MVP`);
-        logs.push('⭐ Voted League MVP.');
-      }
-    }
-
-    // This is the normal recognition lane for strong young seasons.
-    if (p.age <= 21 && s.rating >= 7.15 && overall >= rep - 12 && s.games >= 24) {
-      const outputFloor = p.position === 'GK' || p.position === 'CB' || p.position === 'FB'
-        ? s.rating >= 7.25
-        : s.goals + s.assists >= 12;
-      if (outputFloor && chance(0.55)) {
-        honors.push('Best Young Player');
-        logs.push('⭐ Named the league\'s Best Young Player.');
-      }
-    }
+/** Ballon d'Or after the summer tournament */
+export function ballonDor(c: Career): string | null {
+  const s = c.season;
+  if (!s) return null;
+  const p = c.player;
+  const ovr = playerOverall(p);
+  const st = s.stats;
+  const avg = st.rated ? st.ratingSum / st.rated : 0;
+  const trophyPts = s.honors.reduce((sum, h) => sum + (h.includes('World Cup') ? 12 : h.includes('Winner') ? 8 : h.includes('Title') ? 5 : 3), 0);
+  const output = p.position === 'GK' || p.position === 'CB' ? st.cleanSheets * 0.5 : (st.goals + st.assists * 0.7) / 2.2;
+  const campaign = (ovr - 84) * 2.2 + trophyPts + output + (avg - 7) * 10 + (p.reputation - 80) * 0.4 + noise() * 4;
+  if (ovr >= 88 && s.division === 1 && chance(clamp((campaign - 34) / 45, 0, 0.55))) {
+    s.awards.push("Ballon d'Or");
+    addHonor(c.honors.individual, "Ballon d'Or");
+    addPack(c, 'elite', "Ballon d'Or");
+    gainReputation(c, 10);
+    return "🏅 You win the Ballon d'Or — the best player in the world!";
   }
+  if (ovr >= 84 && campaign >= 22) return `You finished in the top 10 of the Ballon d'Or voting.`;
+  return null;
+}
 
-  const continentalGoalLine = under21 ? 11 : 8;
-  if (s.contKey !== 'none' && s.contGoals >= continentalGoalLine && chance(under21 ? 0.25 : 0.4)) {
-    honors.push('Continental Top Scorer');
-    logs.push(`⭐ Top scorer in continental play (${s.contGoals} goals).`);
-  }
+export function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 
-  const trophyPoints = s.clubHonors.reduce((sum, h) =>
-    sum + (h.includes('Title') ? 4 : h.includes('Winner') ? 6 : 2), 0);
-  const outputPoints = (s.goals + s.assists) / 3;
-  const campaign =
-    (overall - 82) * 3 +
-    trophyPoints +
-    outputPoints +
-    (rep - 78) * 0.5 +
-    club.prestige * 0.05 +
-    noise() * 4;
-  let wonBallon = false;
-  const ballonOverall = under21 ? 94 : 90;
-  const ballonCampaign = under21 ? 48 : 34;
-  const ballonChance = under21 ? 0.12 : 0.28;
-  if (overall >= ballonOverall && campaign >= ballonCampaign && topFlight && chance(ballonChance)) {
-    honors.push("Ballon d'Or");
-    logs.push("🏅 Won the Ballon d'Or — the best player in the world.");
-    wonBallon = true;
-  }
-
-  let repGain = (overall - p.reputation) * 0.25;
-  repGain += s.clubHonors.length * 1.5;
-  repGain += honors.length * 2.5;
-  repGain += clamp((s.goals + s.assists - 10) * 0.15, -2, 6);
-  if (wonBallon) repGain += 8;
-
-  return { individualHonors: honors, logs, reputationGain: repGain, wonBallon };
+export function computeLegacy(c: Career): { score: number; tier: string; blurb: string } {
+  const count = (list: Honor[], m: (l: string) => boolean) => list.filter((h) => m(h.label)).reduce((s, h) => s + h.count, 0);
+  const t = c.totals;
+  const titles = count(c.honors.club, (l) => l.includes('Title'));
+  const cont = count(c.honors.club, (l) => l.includes('Winner'));
+  const cups = count(c.honors.club, (l) => l.endsWith('Cup'));
+  const ballons = count(c.honors.individual, (l) => l.includes('Ballon'));
+  const boots = count(c.honors.individual, (l) => l.includes('Golden Boot'));
+  const otherInd = count(c.honors.individual, (l) => !l.includes('Ballon') && !l.includes('Golden Boot'));
+  const wc = count(c.honors.national, (l) => l.includes('World Cup'));
+  const natCont = count(c.honors.national, (l) => !l.includes('World Cup'));
+  const score = t.apps * 0.3 + t.goals * 1.0 + t.assists * 0.7 + t.caps * 0.8 + t.intlGoals * 1.2 + t.motm * 0.5 +
+    titles * 18 + cups * 6 + cont * 34 + otherInd * 8 + boots * 15 + ballons * 90 + natCont * 40 + wc * 75 + c.peakOvr * 2;
+  let tier: string; let blurb: string;
+  if (score >= 2700) { tier = 'Immortal'; blurb = 'Spoken of in the same breath as the greatest ever to play.'; }
+  else if (score >= 1700) { tier = 'Icon'; blurb = 'A global icon who defined an era.'; }
+  else if (score >= 1000) { tier = 'Legend'; blurb = 'A bona fide legend, adored wherever the game is played.'; }
+  else if (score >= 600) { tier = 'Club Hero'; blurb = 'A beloved figure whose shirt still hangs in the stands.'; }
+  else if (score >= 300) { tier = 'Solid Pro'; blurb = 'A dependable professional with a respectable career.'; }
+  else { tier = 'Journeyman'; blurb = 'A grafter who lived the dream, if only for a while.'; }
+  return { score: Math.round(score), tier, blurb };
 }

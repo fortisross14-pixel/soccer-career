@@ -1,127 +1,92 @@
-import type { ClubDef, NationalMatch, NationalMatchType, Player } from '../game/types';
-import { COUNTRIES, getCountry } from '../data/countries';
-import { worldCupThisYear, continentalNationsThisYear, CONTINENTAL_NATIONS } from '../data/tournaments';
-import { clamp, chance, noise, randInt, round1 } from './util';
+import type { Career, Fixture } from '../game/types';
+import { getCountry } from '../data/countries';
+import { INTL_BREAKS, TOURNAMENT_DAYS, makeFixture, nationalOpponent, nationalTournament } from './calendar';
+import { matchOverall } from './overall';
+import { natRole, ROLE_LABEL } from './match';
+import { chance, clamp, noise } from './util';
+import { addHonor } from './awards';
+import { addPack } from './cards';
 
-export interface NationalOutput {
-  status: string;
-  caps: number;
-  goals: number;
-  assists: number;
-  matches: NationalMatch[];
-  nationalHonors: string[];
-  individualHonors: string[];
-  logs: string[];
+const natId = (c: Career) => `nat:${c.player.country}`;
+
+function selected(c: Career, margin: number): boolean {
+  const p = c.player;
+  if (p.age < 17) return false;
+  if (p.injury && p.injury.year === c.year && p.injury.untilDay > c.month * 30 + 10) return false;
+  const str = getCountry(p.country).nationalStrength;
+  const score = matchOverall(p) + (p.form - 6.8) * 3 + p.reputation * 0.04 + noise() * 2;
+  return score >= str - margin;
 }
 
-export function nationalStatus(overall: number, age: number, club: ClubDef, nationStrength: number): string {
-  if (age < 16 || club.tier === 'Youth') return 'Not called up';
-  const d = overall - nationStrength;
-  if (d >= 2) return 'Nailed-on starter';
-  if (d >= -3) return 'Squad regular';
-  if (d >= -8) return 'Rotation option';
-  if (d >= -13) return 'On the radar';
-  return 'Not called up';
+export function nationalStatus(c: Career): string {
+  const str = getCountry(c.player.country).nationalStrength;
+  return ROLE_LABEL[natRole(matchOverall(c.player), str)];
 }
 
-const BASE_MATCHES: Record<string, [number, number]> = {
-  'Nailed-on starter': [7, 10], 'Squad regular': [5, 8], 'Rotation option': [2, 5],
-  'On the radar': [0, 2], 'Not called up': [0, 0],
-};
-
-function opponentFor(country: string): string {
-  const pool = COUNTRIES.filter((c) => c.name !== country);
-  return pool[randInt(0, pool.length - 1)]?.name ?? 'International XI';
-}
-
-function playerContribution(p: Player, started: boolean, minutes: number) {
-  const involvement = minutes / 90;
-  const goalRate = p.position === 'ST' ? 0.42 : p.position === 'W' || p.position === 'AM' ? 0.25 : p.position === 'B2B' || p.position === 'CM' ? 0.1 : 0.025;
-  const assistRate = p.position === 'AM' ? 0.28 : p.position === 'W' || p.position === 'CM' || p.position === 'FB' ? 0.2 : 0.09;
-  const goals = chance(clamp(goalRate * involvement * (0.55 + p.skills.finishing / 105), 0, 0.75)) ? 1 + (chance(0.1) ? 1 : 0) : 0;
-  const assists = chance(clamp(assistRate * involvement * (0.5 + (p.skills.shortPass + p.skills.decisions) / 220), 0, 0.65)) ? 1 : 0;
-  const rating = round1(clamp(6.35 + goals * 0.9 + assists * 0.55 + noise() * 0.3 + (started ? 0.05 : -0.1), 5.7, 9.5));
-  return { goals, assists, rating };
-}
-
-function makeMatch(p: Player, type: NationalMatchType, stage: string, nationStrength: number, status: string): NationalMatch {
-  const opponent = opponentFor(p.country);
-  const oppStrength = getCountry(opponent).nationalStrength;
-  const selected = status !== 'Not called up' && (status !== 'On the radar' || chance(0.45));
-  const started = selected && (status === 'Nailed-on starter' || (status === 'Squad regular' && chance(0.7)) || chance(0.25));
-  const minutes = !selected ? 0 : started ? randInt(68, 90) : randInt(12, 36);
-  const contribution = selected ? playerContribution(p, started, minutes) : { goals: 0, assists: 0, rating: null };
-  const strengthEdge = (nationStrength - oppStrength) / 18;
-  let teamGoals = Math.max(0, Math.round(1.25 + strengthEdge + noise() * 1.05));
-  let opponentGoals = Math.max(0, Math.round(1.1 - strengthEdge + noise() * 1.0));
-  teamGoals = Math.max(teamGoals, contribution.goals);
-  const result = teamGoals > opponentGoals ? 'W' : teamGoals < opponentGoals ? 'L' : 'D';
-  return { season: p.season, age: p.age, opponent, competition: type, stage, result, teamGoals, opponentGoals, started, minutes, goals: contribution.goals, assists: contribution.assists, rating: contribution.rating };
-}
-
-function tournamentStages(isWorldCup: boolean): string[] {
-  return isWorldCup
-    ? ['Group stage', 'Group stage', 'Group stage', 'Round of 16', 'Quarter-final', 'Semi-final', 'Final']
-    : ['Group stage', 'Group stage', 'Group stage', 'Quarter-final', 'Semi-final', 'Final'];
-}
-
-export function simulateNational(p: Player, club: ClubDef, overall: number): NationalOutput {
-  const country = getCountry(p.country);
-  const status = nationalStatus(overall, p.age, club, country.nationalStrength);
-  const nationalHonors: string[] = [];
-  const individualHonors: string[] = [];
-  const logs: string[] = [];
-  const matches: NationalMatch[] = [];
-
-  const [lo, hi] = BASE_MATCHES[status];
-  const tournament = p.age >= 16 && (worldCupThisYear(p.season) || continentalNationsThisYear(p.season));
-  const baseCount = randInt(lo, hi);
-  const baseType: NationalMatchType = p.season % 2 === 1 ? 'World Cup Qualification' : 'Continental Qualification';
-  for (let i = 0; i < baseCount; i++) {
-    const type: NationalMatchType = i < 2 && chance(0.55) ? 'Friendly' : baseType;
-    matches.push(makeMatch(p, type, type === 'Friendly' ? 'International window' : `Matchday ${i + 1}`, country.nationalStrength, status));
+/** international break: maybe a call-up with two matches */
+export function nationalCallUp(c: Career): string[] {
+  const days = INTL_BREAKS[c.month];
+  if (!days || !c.season) return [];
+  if (!selected(c, 6)) {
+    if (c.national.debutAge !== null) c.national.status = 'Left out';
+    return c.national.debutAge !== null ? [`Not included in the ${c.player.country} squad this international break.`] : [];
   }
+  const qual = nationalTournament(c.year + 1, c.player.country) === 'World Cup' ? 'World Cup Qualifier' : nationalTournament(c.year + 1, c.player.country) ? 'Continental Qualifier' : 'Nations League';
+  days.forEach((day, i) => {
+    c.season!.fixtures.push(makeFixture({ day, comp: 'national', compName: i === 0 && chance(0.35) ? 'International Friendly' : qual, stage: 'International break', usId: natId(c), oppId: nationalOpponent(c.player.country, false), home: i % 2 === 0 }));
+  });
+  c.season.fixtures.sort((a, b) => a.day - b.day);
+  c.national.status = nationalStatus(c);
+  return [`📣 Called up by ${c.player.country}! (${c.national.status})`];
+}
 
-  if (tournament && (status === 'Nailed-on starter' || status === 'Squad regular' || status === 'Rotation option')) {
-    const isWC = worldCupThisYear(p.season);
-    const compName = isWC ? 'World Cup' : CONTINENTAL_NATIONS[country.confederation] || 'Continental Championship';
-    const type: NationalMatchType = isWC ? 'World Cup' : 'Continental Championship';
-    const stages = tournamentStages(isWC);
-    let eliminated = false;
-    for (const stage of stages) {
-      if (eliminated) break;
-      const match = makeMatch(p, type, stage, country.nationalStrength, status);
-      matches.push(match);
-      if (stage !== 'Group stage' && match.result !== 'W') eliminated = true;
-    }
-    const final = matches.find((m) => m.competition === type && m.stage === 'Final');
-    if (final?.result === 'W') {
-      nationalHonors.push(`${compName} Winner`);
-      logs.push(`🏆 Won the ${compName} with ${p.country}!`);
-    } else {
-      const lastTournamentMatch = [...matches].reverse().find((m) => m.competition === type);
-      if (lastTournamentMatch) logs.push(`Reached the ${lastTournamentMatch.stage} at the ${compName}.`);
-    }
+export function setupTournament(c: Career): string[] {
+  const name = nationalTournament(c.year, c.player.country);
+  if (!name || !c.season) return [];
+  const str = getCountry(c.player.country).nationalStrength;
+  const qualified = chance(clamp(0.55 + (str - 74) / 28, 0.35, 0.97));
+  c.season.natTournament = { name, alive: qualified, qualified };
+  if (!qualified) return [`${c.player.country} failed to qualify for the ${name}.`];
+  if (!selected(c, 5)) return [`${c.player.country} qualified for the ${name}, but you weren't in the squad.`];
+  for (let i = 0; i < 3; i++) {
+    c.season.fixtures.push(makeFixture({ day: TOURNAMENT_DAYS[i], comp: 'national', compName: name, stage: `Group · MD${i + 1}`, usId: natId(c), oppId: nationalOpponent(c.player.country, i === 0), home: false }));
   }
+  c.season.fixtures.sort((a, b) => a.day - b.day);
+  return [`🌍 Selected for the ${name} with ${c.player.country}!`];
+}
 
-  const played = matches.filter((m) => m.minutes > 0);
-  const caps = played.length;
-  const goals = played.reduce((sum, m) => sum + m.goals, 0);
-  const assists = played.reduce((sum, m) => sum + m.assists, 0);
-  if (caps > 0 && p.national.debutAge === null) {
-    p.national.debutAge = p.age;
-    logs.push(`🌍 Made your senior debut for ${p.country}.`);
-  }
-  const tournamentMatches = played.filter((m) => m.competition === 'World Cup' || m.competition === 'Continental Championship');
-  if (tournamentMatches.length >= 5) {
-    const avg = tournamentMatches.reduce((sum, m) => sum + (m.rating ?? 0), 0) / tournamentMatches.length;
-    const tg = tournamentMatches.reduce((sum, m) => sum + m.goals, 0);
-    if (avg >= 8.1 && overall >= 88 && chance(0.45)) individualHonors.push(`${tournamentMatches[0].competition} Golden Ball`);
-    if (tg >= 5 && chance(0.55)) individualHonors.push(`${tournamentMatches[0].competition} Golden Boot`);
-  }
+function koStages(name: string): string[] {
+  return name === 'World Cup' ? ['Round of 16', 'Quarter-final', 'Semi-final', 'Final'] : ['Quarter-final', 'Semi-final', 'Final'];
+}
 
-  p.national.status = status;
-  p.national.matches ??= [];
-  p.national.matches.push(...matches);
-  return { status, caps, goals, assists, matches, nationalHonors, individualHonors, logs };
+/** progress the tournament after one of our matches; returns news */
+export function afterTournamentMatch(c: Career, fx: Fixture): string[] {
+  const t = c.season?.natTournament;
+  if (!t || fx.compName !== t.name || !c.season) return [];
+  const news: string[] = [];
+  const stages = koStages(t.name);
+  const ours = c.season.fixtures.filter((f) => f.compName === t.name);
+  const push = (stage: string) => {
+    const idx = stages.indexOf(stage);
+    const day = TOURNAMENT_DAYS[TOURNAMENT_DAYS.length - stages.length + idx];
+    c.season!.fixtures.push(makeFixture({ day, comp: 'national', compName: t.name, stage, usId: fx.usId, oppId: nationalOpponent(c.player.country, idx >= 1), home: false }));
+    c.season!.fixtures.sort((a, b) => a.day - b.day);
+  };
+  if (fx.stage === 'Group · MD3') {
+    const pts = ours.filter((f) => f.stage.startsWith('Group')).reduce((s, f) => s + ((f.usGoals ?? 0) > (f.oppGoals ?? 0) ? 3 : f.usGoals === f.oppGoals ? 1 : 0), 0);
+    const through = pts >= 6 || (pts >= 4 && chance(0.8)) || (pts === 3 && chance(0.35));
+    if (through) { news.push(`${c.player.country} advance from the group (${pts} pts).`); push(stages[0]); }
+    else { t.alive = false; news.push(`${c.player.country} are knocked out in the group stage (${pts} pts).`); }
+  } else if (!fx.stage.startsWith('Group')) {
+    const won = (fx.usGoals ?? 0) > (fx.oppGoals ?? 0) || fx.penalties?.startsWith('W');
+    if (!won) { t.alive = false; news.push(`${c.player.country} are eliminated in the ${fx.stage}.`); }
+    else if (fx.stage === 'Final') {
+      t.alive = false;
+      c.season.honors.push(`${t.name} Winner`);
+      addHonor(c.honors.national, `${t.name} Winner`);
+      addPack(c, 'elite', `${t.name} Winner`);
+      news.push(`🏆 ${c.player.country} WIN THE ${t.name.toUpperCase()}!`);
+    } else push(stages[stages.indexOf(fx.stage) + 1]);
+  }
+  return news;
 }

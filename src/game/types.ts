@@ -1,6 +1,6 @@
 // ============================================================
-// Core domain types. These describe the "documents" (data) and
-// the runtime game state the engines operate on.
+// Domain types. Static "documents" (clubs, skills, cards...) and
+// the runtime Career state that the engines operate on.
 // ============================================================
 
 export type SkillKey =
@@ -15,12 +15,10 @@ export interface SkillDef {
   key: SkillKey;
   label: string;
   category: SkillCategory;
-  /** physical skills decline earliest; mental skills hold longest. */
   ageCurve: 'physical' | 'technical' | 'mental';
 }
 
-export type PositionKey =
-  | 'ST' | 'W' | 'AM' | 'B2B' | 'CM' | 'CB' | 'FB' | 'GK';
+export type PositionKey = 'ST' | 'W' | 'AM' | 'B2B' | 'CM' | 'CB' | 'FB' | 'GK';
 
 export interface PositionDef {
   key: PositionKey;
@@ -29,27 +27,20 @@ export interface PositionDef {
   category: 'Attack' | 'Midfield' | 'Defense' | 'Goalkeeper';
   weights: Partial<Record<SkillKey, number>>;
   keySkills: SkillKey[];
-  /** expected goals & assists per 38-game season for a *league-average* player in this role */
   expGoals: number;
   expAssists: number;
 }
 
 export type ClubTier = 'Elite' | 'Strong' | 'Mid' | 'Small' | 'Youth';
 export type ContinentalSpot = 'CL' | 'EL' | 'none';
-export type TrainingIntensity = 'light' | 'balanced' | 'intense';
-export type SeasonObjective = 'develop' | 'play' | 'perform' | 'trophy' | 'international' | 'transfer' | 'recover';
-export type TacticalRole = 'poacher' | 'target-forward' | 'complete-forward' | 'false-nine' | 'pressing-forward' | 'winger' | 'inside-forward' | 'advanced-playmaker' | 'box-to-box' | 'ball-winner' | 'deep-playmaker' | 'stopper' | 'ball-playing-defender' | 'overlapping-fullback' | 'defensive-fullback' | 'sweeper-keeper' | 'shot-stopper';
-export type AgentType = 'family' | 'local' | 'international' | 'commercial';
 
 export interface ClubDef {
   id: string;
   name: string;
   country: string;
-  /** squad strength 55-92 */
   rating: number;
   tier: ClubTier;
-  prestige: number; // 40-100, drives sponsorships & Ballon d'Or visibility
-  /** relative wage budget multiplier */
+  prestige: number;
   wageFactor: number;
   continental: ContinentalSpot;
   division: 1 | 2;
@@ -59,10 +50,8 @@ export interface ClubDef {
 export interface CountryDef {
   name: string;
   confederation: 'UEFA' | 'CONMEBOL' | 'CONCACAF' | 'AFC' | 'CAF';
-  /** league reputation 55-95: gates award thresholds & visibility */
   leagueRep: number;
   leagueName: string;
-  /** national team strength 60-90 */
   nationalStrength: number;
 }
 
@@ -70,243 +59,264 @@ export interface TraitDef {
   id: string;
   name: string;
   desc: string;
-  rarity: number; // relative weight
+  rarity: number;
   boosts: Partial<Record<SkillKey, number>>;
-  /** only offered to matching position categories, empty = any */
   positions?: PositionDef['category'][];
 }
 
-export interface LifeEventDef {
-  id: string;
-  desc: string;
-  minAge: number;
-  maxAge: number;
-  effects: Partial<Record<SkillKey, number>>;
-  weight: number;
+// ---------------- Cards ----------------
+
+export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
+export type CardKind = 'skill' | 'boost' | 'recovery' | 'potential' | 'trait' | 'staff';
+export type PackTier = 'bronze' | 'silver' | 'gold' | 'elite';
+
+export interface StaffPerks {
+  growth?: number;     // +x growth multiplier
+  injury?: number;     // -x injury risk multiplier
+  recovery?: number;   // +x fitness per day
+  reputation?: number; // +x reputation gain multiplier
+  wage?: number;       // +x wage on new deals
+  offers?: number;     // extra offers per window
 }
 
-export type AwardScope = 'individual' | 'club' | 'national';
-
-export interface AwardDef {
+export interface CardDef {
   id: string;
   name: string;
-  scope: AwardScope;
+  kind: CardKind;
+  rarity: Rarity;
   desc: string;
+  skills?: Partial<Record<SkillKey, number>>;
+  /** boost: number of matches it lasts */
+  matches?: number;
+  fitness?: number;
+  morale?: number;
+  trust?: number;
+  reputation?: number;
+  heal?: number;       // injury days removed
+  potential?: number;  // ceiling delta (0..1 scale)
+  traitId?: string;
+  staff?: StaffPerks;
+  monthlyCost?: number;
+  positions?: PositionDef['category'][];
+  maxAge?: number;
 }
 
-// ---------------- Runtime state ----------------
+export interface CardInstance { uid: string; defId: string; isNew?: boolean }
+export interface PackInstance { uid: string; tier: PackTier; reason: string }
+export interface ActiveBoost { uid: string; defId: string; name: string; skills: Partial<Record<SkillKey, number>>; matchesLeft: number }
 
-export type SquadRole = 'star' | 'starter' | 'rotation' | 'fringe' | 'reserve' | 'youth';
+// ---------------- Matches ----------------
 
-export interface Contract {
-  clubId: string;
-  wage: number; // annual, dollars
-  yearsLeft: number;
-}
+export type CompKind = 'league' | 'cup' | 'continental' | 'national';
+export type Involvement = 'started' | 'sub' | 'bench' | 'dropped' | 'injured' | 'none';
 
-export interface SeasonRecord {
-  age: number;
-  season: number;
-  clubName: string;
-  clubId: string;
-  role: SquadRole;
-  competition: string;
-  games: number;
-  goals: number;
-  assists: number;
-  rating: number;
-  leagueFinish: number | null;
-  leagueName: string;
-  overall: number;
-  // national
-  capsThisYear: number;
-  intlGoals: number;
-  intlAssists?: number;
-  // honors earned this season (labels)
-  clubHonors: string[];
-  individualHonors: string[];
-  nationalHonors: string[];
-  narrative?: string[];
-  worldHeadlines?: string[];
-  positionStats?: Record<string, number>;
-}
-
-export interface SeasonEventChoice {
-  id: string;
-  label: string;
-  description: string;
-  effects: {
-    morale?: number; fitness?: number; managerTrust?: number; reputation?: number;
-    performance?: number; development?: number; injuryRisk?: number; decisionScore?: number;
-    money?: number; skillChanges?: Partial<Record<SkillKey, number>>;
-    relationshipRole?: CareerCharacter['role']; relationship?: number;
-    personality?: Partial<Record<keyof PlayerPersonality, number>>;
-  };
-}
-export interface SeasonEvent {
-  id: string;
-  title: string;
-  body: string;
-  category: 'life' | 'career' | 'match' | 'injury';
-  choices: SeasonEventChoice[];
-}
-export interface CareerCharacter { name: string; role: 'mentor' | 'captain' | 'prospect' | 'friend'; relationship: number; overall: number; clubName: string; }
-
-export interface PlayerPersonality {
-  professionalism: number;
-  loyalty: number;
-  humility: number;
-  teamFirst: number;
-  courage: number;
-  mediaComfort: number;
-}
-
-export interface Honor {
-  label: string;
-  count: number;
-}
-
-export interface Offer {
-  clubId: string;
-  clubName: string;
-  clubRating: number;
-  tier: ClubTier;
-  country: string;
-  role: SquadRole;
-  wage: number;
-  years: number;
-  continental: ContinentalSpot;
-  international: boolean;
-  source?: 'automatic' | 'domestic-scout' | 'international-scout' | 'transfer-request' | 'loan-request' | 'targeted-search';
-  loan?: boolean;
-  academyFocus?: SkillCategory;
-}
-
-export interface RivalSeason {
-  age: number;
-  season: number;
-  clubName: string;
-  overall: number;
-  games: number;
-  goals: number;
-  assists: number;
-  rating: number;
-  trophies: number;
-}
-
-export interface EventLogEntry {
-  season: number;
-  age: number;
-  kind: 'event' | 'transfer' | 'trophy' | 'award' | 'national' | 'milestone' | 'injury' | 'system';
+export interface MatchEvent {
+  minute: number;
+  side: 'us' | 'them';
+  type: 'goal' | 'sub-on' | 'sub-off' | 'yellow' | 'injury' | 'save' | 'chance';
   text: string;
+  mine?: boolean;
 }
 
-
-export type NationalMatchType = 'Friendly' | 'World Cup Qualification' | 'Continental Qualification' | 'World Cup' | 'Continental Championship';
-
-export interface NationalMatch {
-  season: number;
-  age: number;
-  opponent: string;
-  competition: NationalMatchType;
-  stage: string;
-  result: string;
-  teamGoals: number;
-  opponentGoals: number;
-  started: boolean;
+export interface MatchReport {
+  involvement: Involvement;
   minutes: number;
   goals: number;
   assists: number;
   rating: number | null;
+  motm: boolean;
+  stats: Record<string, number>;
+  events: MatchEvent[];
+  note?: string;
 }
 
-export interface NationalCareer {
-  debutAge: number | null;
-  caps: number;
-  goals: number;
-  assists?: number;
-  status: string;
-  matches?: NationalMatch[];
+export interface Fixture {
+  id: string;
+  day: number;             // day of season, 0 = 1 July
+  comp: CompKind;
+  compName: string;
+  stage: string;
+  usId: string;            // our team id (club id or nat:Country)
+  oppId: string;
+  home: boolean;
+  played: boolean;
+  usGoals?: number;
+  oppGoals?: number;
+  penalties?: string;      // "W 4-3" / "L 2-4"
+  report?: MatchReport;
 }
+
+export interface TableRow {
+  clubId: string;
+  p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number;
+  form: ('W' | 'D' | 'L')[];
+}
+
+export interface SeasonStats {
+  apps: number; starts: number; minutes: number; goals: number; assists: number;
+  ratingSum: number; rated: number; motm: number; cleanSheets: number;
+  leagueApps: number; leagueGoals: number; leagueAssists: number; leagueRatingSum: number; leagueRated: number;
+  contGoals: number;
+  intlCaps: number; intlGoals: number; intlAssists: number;
+}
+
+export interface SeasonState {
+  year: number;
+  clubId: string;
+  clubName: string;
+  country: string;
+  leagueName: string;
+  division: 1 | 2;
+  table: TableRow[];
+  rounds: { day: number; pairs: [string, string][] }[];
+  roundsPlayed: number;
+  fixtures: Fixture[];
+  cupAlive: boolean;
+  contKey: ContinentalSpot;
+  contName: string;
+  contAlive: boolean;
+  natTournament?: { name: string; alive: boolean; qualified: boolean };
+  stats: SeasonStats;
+  honors: string[];
+  awards: string[];
+  ovrStart: number;
+  clubsThisSeason: string[];
+  ended: boolean;
+}
+
+// ---------------- Player & Career ----------------
+
+export type SquadRole = 'star' | 'starter' | 'rotation' | 'fringe' | 'reserve';
+export type Intensity = 'light' | 'normal' | 'intense';
+
+export interface Contract {
+  clubId: string;
+  wage: number;          // annual
+  yearsLeft: number;     // seasons remaining including the current one
+  promisedRole: SquadRole;
+  parentClubId?: string; // set when on loan
+  parentWage?: number;
+  parentYears?: number;
+}
+
+export interface Injury { name: string; untilDay: number; year: number }
 
 export interface Player {
-  id: string;
   name: string;
   country: string;
   position: PositionKey;
   age: number;
-  season: number; // calendar-ish counter, starts at a base year
   skills: Record<SkillKey, number>;
-  /** hidden 0-1 talent ceiling driver */
-  potentialCeiling: number; // final soft cap for overall (e.g. 62-99)
+  /** 0.4..1.0 talent ceiling — shown to the player as POT */
+  potential: number;
+  stars: 1 | 2 | 3 | 4 | 5;
   peakStart: number;
   peakEnd: number;
-  reputation: number; // 0-100, grows with performances
-  marketValue: number; // dollars
-  money: number; // career earnings
-  traits: TraitDef['id'][];
+  traits: string[];
+  form: number;
+  fitness: number;
+  morale: number;
+  trust: number;
+  reputation: number;
+  money: number;
   contract: Contract | null;
-  academyClubId?: string;
-  academyFocus?: SkillCategory;
-  professionalDebutAge?: number | null;
-  role: SquadRole;
-  national: NationalCareer;
-  honors: {
-    club: Honor[];
-    national: Honor[];
-    individual: Honor[];
-  };
-  totals: { games: number; goals: number; assists: number; caps: number; intlGoals: number; intlAssists?: number };
-  history: SeasonRecord[];
-  log: EventLogEntry[];
-  offers: Offer[];
-  // per-year action flags
-  trainedThisYear: boolean;
-  searchedThisYear: boolean;
-  searchedDomesticThisYear?: boolean;
-  searchedInternationalThisYear?: boolean;
-  sponsoredThisYear?: boolean;
-  renegotiatedThisYear?: boolean;
-  transferRequestedThisYear?: boolean;
-  trainingIntensity?: TrainingIntensity;
-  seasonObjective?: SeasonObjective;
-  morale?: number;
-  fitness?: number;
-  managerTrust?: number;
-  clubContinental?: ContinentalSpot;
-  retired: boolean;
-  legacyScore?: number;
-  legacyTier?: string;
-  prospectStars?: 1 | 2 | 3 | 4 | 5;
-  peakOverall?: number;
-  injurySeasons?: number;
-  intenseTrainingYears?: number;
-  careerDecisionScore?: number;
-  rivalName?: string;
-  rivalOverall?: number;
-  rivalCountry?: string;
-  rivalPosition?: PositionKey;
-  rivalClubName?: string;
-  rivalTotals?: { games: number; goals: number; assists: number; trophies: number };
-  rivalHistory?: RivalSeason[];
-  worldHeadlines?: string[];
-  tacticalRole?: TacticalRole;
-  agentType?: AgentType;
-  loanRequestedThisYear?: boolean;
-  eventPerformanceModifier?: number;
-  eventDevelopmentModifier?: number;
-  eventInjuryModifier?: number;
-  characters?: CareerCharacter[];
-  personality?: PlayerPersonality;
+  injury: Injury | null;
+  boosts: ActiveBoost[];
+  staff: string[];
+  transferListed: boolean;
 }
 
-export interface SaveMeta {
-  slot: number;
-  name: string;
+export interface Offer {
+  uid: string;
+  kind: 'transfer' | 'renewal' | 'loan' | 'first';
+  clubId: string;
+  wage: number;
+  years: number;
+  role: SquadRole;
+  pushes: number;
+  final: boolean;
+  note?: string;
+}
+
+export interface DecisionChoice {
+  id: string;
+  label: string;
+  desc: string;
+  effects: {
+    trust?: number; morale?: number; fitness?: number; reputation?: number; form?: number;
+    money?: number; skills?: Partial<Record<SkillKey, number>>; pack?: PackTier; card?: string;
+    transferList?: boolean; retire?: boolean; heal?: number;
+  };
+}
+
+export interface Decision {
+  uid: string;
+  id: string;
+  title: string;
+  body: string;
+  choices: DecisionChoice[];
+}
+
+export interface MonthReport {
+  year: number;
+  month: number;
+  fixtures: string[];          // fixture ids played this month (ours)
+  skillDeltas: Partial<Record<SkillKey, number>>;
+  ovrBefore: number;
+  ovrAfter: number;
+  packs: PackInstance[];
+  news: string[];
+  income: number;
+  costs: number;
+  seasonEnd?: SeasonSummary;
+}
+
+export interface SeasonSummary {
+  year: number;
   age: number;
-  position: PositionKey;
-  country: string;
-  clubName: string;
-  overall: number;
+  clubs: string;
+  leagueName: string;
+  leaguePos: number | null;
+  apps: number; starts: number; minutes: number; goals: number; assists: number;
+  avgRating: number;
+  motm: number;
+  caps: number; intlGoals: number;
+  honors: string[];
+  awards: string[];
+  ovrStart: number;
+  ovrEnd: number;
+}
+
+export interface Honor { label: string; count: number }
+
+export interface LogEntry { year: number; month: number; text: string; kind: 'transfer' | 'trophy' | 'award' | 'national' | 'injury' | 'milestone' | 'card' | 'info' }
+
+export interface Career {
+  version: 2;
+  id: string;
+  rng: number;
+  player: Player;
+  year: number;
+  month: number;                // 0 = July ... 11 = June
+  season: SeasonState | null;
+  cards: CardInstance[];
+  packs: PackInstance[];
+  purchases: number;            // packs bought this season
+  focus: string;                // training focus id
+  intensity: Intensity;
+  offers: Offer[];
+  decisions: Decision[];
+  notices: string[];            // what's happening this month
+  asked: { loan: boolean; transfer: boolean };
+  lastReport: MonthReport | null;
+  history: SeasonSummary[];
+  pastFixtures: Fixture[];      // last season only
+  honors: { club: Honor[]; individual: Honor[]; national: Honor[] };
+  totals: { apps: number; goals: number; assists: number; caps: number; intlGoals: number; motm: number };
+  national: { debutAge: number | null; status: string };
+  log: LogEntry[];
+  peakOvr: number;
+  qualified?: { clubId: string; key: ContinentalSpot };
   retired: boolean;
+  legacy?: { score: number; tier: string; blurb: string };
 }

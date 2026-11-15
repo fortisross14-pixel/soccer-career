@@ -1,96 +1,92 @@
-import { createPlayer } from '../src/engines/newgame';
-import { advanceYear, signOffer, searchForClubs } from '../src/game/engine';
-import { playerOverall } from '../src/engines/overall';
+// Headless balance harness: auto-plays careers with a simple AI and prints
+// distributions. Run with `npm run sim [count]`.
+import { createCareer } from '../src/engines/career';
+import { playMonth, finalizeRetirement } from '../src/engines/month';
+import { acceptOffer } from '../src/engines/market';
+import { openPack, playCard, cardBlocker, sellCard } from '../src/engines/cards';
+import { applyDecision } from '../src/engines/decisions';
+import { playerOverall, potentialOverall } from '../src/engines/overall';
+import { roleRank } from '../src/engines/match';
+import { seedRng } from '../src/engines/util';
+import { CARD_MAP } from '../src/data/cards';
+import { CLUB_MAP } from '../src/data/clubs';
 import { POSITIONS } from '../src/data/positions';
 import { COUNTRIES } from '../src/data/countries';
-import type { Player, SquadRole } from '../src/game/types';
+import type { Career } from '../src/game/types';
 
-const ROLE_RANK: Record<SquadRole, number> = { star: 5, starter: 4, rotation: 3, youth: 2, fringe: 1, reserve: 0 };
+const N = Number(process.argv[2] ?? 200);
 
-// Simple "ambitious" AI: sign the best offer that keeps you at least a
-// rotation option, preferring the strongest club where you'd start.
-function autoPlay(p0: Player): Player {
-  let p = p0;
+function manageCards(c: Career) {
+  for (const pk of [...c.packs]) openPack(c, pk.uid);
+  for (const card of [...c.cards]) {
+    const def = CARD_MAP[card.defId];
+    if (def.kind === 'recovery' && def.heal && !c.player.injury) continue;
+    if (def.kind === 'recovery' && def.fitness && c.player.fitness > 75) continue;
+    if (def.kind === 'boost' && c.player.boosts.length >= 2) continue;
+    if (!cardBlocker(c, def)) playCard(c, card.uid);
+  }
+  while (c.cards.length > 15) sellCard(c, c.cards[0].uid);
+}
+
+function manageMarket(c: Career) {
+  const p = c.player;
+  const cur = p.contract ? CLUB_MAP[p.contract.clubId].rating : 0;
+  const ranked = [...c.offers].sort((a, b) => (roleRank(b.role) >= 2 ? 1 : 0) - (roleRank(a.role) >= 2 ? 1 : 0) || CLUB_MAP[b.clubId].rating - CLUB_MAP[a.clubId].rating);
+  if (c.offers.some((o) => o.kind === 'first')) { acceptOffer(c, c.offers[0].uid); return; }
+  const best = ranked.find((o) => o.kind !== 'renewal' && roleRank(o.role) >= 2 && CLUB_MAP[o.clubId].rating >= cur + 3);
+  if (best) { acceptOffer(c, best.uid); return; }
+  const ren = c.offers.find((o) => o.kind === 'renewal');
+  if (ren) { acceptOffer(c, ren.uid); return; }
+  if (!p.contract && ranked.length) acceptOffer(c, ranked[0].uid);
+}
+
+function run(i: number) {
+  const pos = POSITIONS[i % POSITIONS.length].key;
+  const country = COUNTRIES[i % COUNTRIES.length].name;
+  const c = createCareer(`Sim ${i}`, country, pos, 1000 + i);
+  seedRng(c.rng);
   let guard = 0;
-  while (!p.retired && guard++ < 60) {
-    // scouting: from 18, occasionally look abroad for a better move
-    if (p.age >= 18 && !p.searchedThisYear && Math.random() < 0.6) {
-      p = searchForClubs(p, Math.random() < 0.5 ? 'international' : 'domestic');
+  while (!c.retired && guard++ < 400) {
+    manageCards(c);
+    manageMarket(c);
+    while (c.decisions.length) {
+      const d = c.decisions[0];
+      const retire = d.id === 'retire' && (playerOverall(c.player) < 72 || c.player.age >= 37);
+      applyDecision(c, d, retire ? 'retire' : d.choices[0].id === 'leave' ? d.choices[1].id : d.choices[0].id);
     }
-    // choose an offer
-    if (p.offers.length) {
-      const ovr = playerOverall(p);
-      // prefer: highest club rating where role >= rotation; else best role
-      const ranked = [...p.offers].sort((a, b) => {
-        const ra = ROLE_RANK[a.role] >= 3 ? 1 : 0;
-        const rb = ROLE_RANK[b.role] >= 3 ? 1 : 0;
-        if (ra !== rb) return rb - ra;
-        return b.clubRating - a.clubRating;
-      });
-      // don't chase a bench role at a huge club unless very young
-      const pick = ranked.find((o) => ROLE_RANK[o.role] >= 3 || p.age <= 19) ?? ranked[0];
-      const idx = p.offers.indexOf(pick);
-      if (idx >= 0 && (!p.contract || pick.clubRating > (playerOverall(p)))) {
-        p = signOffer(p, idx);
-      }
-      void ovr;
-    }
-    // train position key skills
-    const keys = POSITIONS.find((x) => x.key === p.position)!.keySkills;
-    const res = advanceYear(p, keys);
-    p = res.player;
+    if (c.retired) { finalizeRetirement(c); break; }
+    if (!c.player.contract) { manageMarket(c); if (!c.player.contract) break; }
+    playMonth(c);
   }
-  return p;
+  return c;
 }
 
-function run(n: number) {
-  const peakOveralls: number[] = [];
-  const careerGoals: number[] = [];
-  const careerGames: number[] = [];
-  const bestSeasonGoals: number[] = [];
-  let ballon = 0, boots = 0, wc = 0, anyNT = 0, crashed = 0, nan = 0;
-  const tierCount: Record<string, number> = {};
+const pct = (arr: number[], q: number) => [...arr].sort((a, b) => a - b)[Math.floor(q * (arr.length - 1))];
+const dist = (arr: number[]) => ({ p10: pct(arr, 0.1), p25: pct(arr, 0.25), med: pct(arr, 0.5), p75: pct(arr, 0.75), p90: pct(arr, 0.9), max: Math.max(...arr) });
 
-  for (let i = 0; i < n; i++) {
-    const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)];
-    const country = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)].name;
-    let p = createPlayer(`Sim ${i}`, country, pos.key);
-    try {
-      p = autoPlay(p);
-    } catch (e) {
-      crashed++; continue;
-    }
-    const peak = Math.max(...p.history.map((h) => h.overall), playerOverall(p));
-    if (Number.isNaN(peak) || Number.isNaN(p.totals.goals)) { nan++; continue; }
-    peakOveralls.push(peak);
-    careerGoals.push(p.totals.goals);
-    careerGames.push(p.totals.games);
-    bestSeasonGoals.push(Math.max(0, ...p.history.map((h) => h.goals)));
-    ballon += p.honors.individual.filter((h) => h.label.includes('Ballon')).reduce((s, h) => s + h.count, 0);
-    boots += p.honors.individual.filter((h) => h.label.includes('Golden Boot')).reduce((s, h) => s + h.count, 0);
-    wc += p.honors.national.filter((h) => h.label.includes('World Cup Winner')).reduce((s, h) => s + h.count, 0);
-    if (p.totals.caps > 0) anyNT++;
-    tierCount[p.legacyTier || '?'] = (tierCount[p.legacyTier || '?'] || 0) + 1;
-  }
-
-  const stats = (arr: number[]) => {
-    const s = [...arr].sort((a, b) => a - b);
-    const q = (p: number) => s[Math.floor(p * (s.length - 1))];
-    const mean = s.reduce((a, b) => a + b, 0) / s.length;
-    return { min: s[0], p25: q(0.25), median: q(0.5), p75: q(0.75), p90: q(0.9), max: s[s.length - 1], mean: +mean.toFixed(1) };
-  };
-
-  console.log(`\n=== ${n} simulated careers ===`);
-  console.log('crashes:', crashed, ' NaN:', nan);
-  console.log('peak overall   ', stats(peakOveralls));
-  console.log('career goals   ', stats(careerGoals));
-  console.log('career apps    ', stats(careerGames));
-  console.log('best-season goals', stats(bestSeasonGoals));
-  console.log('Ballon d\'Or total:', ballon, `(${(ballon / n).toFixed(2)}/career)`);
-  console.log('Golden Boots total:', boots, `(${(boots / n).toFixed(2)}/career)`);
-  console.log('World Cups won:', wc);
-  console.log('reached NT:', `${((anyNT / n) * 100).toFixed(0)}%`);
-  console.log('legacy tiers:', tierCount);
-}
-
-run(400);
+const t0 = Date.now();
+const careers = Array.from({ length: N }, (_, i) => run(i));
+console.log(`${N} careers in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log('peak OVR', dist(careers.map((c) => c.peakOvr)));
+console.log('POT at end', dist(careers.map((c) => potentialOverall(c.player))));
+console.log('retire age', dist(careers.map((c) => c.player.age)));
+console.log('career apps', dist(careers.map((c) => c.totals.apps)));
+const st = careers.filter((c) => c.player.position === 'ST');
+console.log('ST career goals', dist(st.map((c) => c.totals.goals)));
+console.log('ST best season goals', dist(st.map((c) => Math.max(0, ...c.history.map((h) => h.goals)))));
+const am = careers.filter((c) => c.player.position === 'AM' || c.player.position === 'W');
+console.log('AM/W best season assists', dist(am.map((c) => Math.max(0, ...c.history.map((h) => h.assists)))));
+console.log('season apps (age 24-29)', dist(careers.flatMap((c) => c.history.filter((h) => h.age >= 24 && h.age <= 29).map((h) => h.apps))));
+console.log('avg rating (age 24-29)', dist(careers.flatMap((c) => c.history.filter((h) => h.age >= 24 && h.age <= 29).map((h) => h.avgRating))));
+console.log('caps', dist(careers.map((c) => c.totals.caps)), 'reached NT', Math.round(careers.filter((c) => c.totals.caps > 0).length / N * 100) + '%');
+const count = (label: string) => careers.reduce((s, c) => s + [...c.honors.individual, ...c.honors.club, ...c.honors.national].filter((h) => h.label.includes(label)).reduce((x, h) => x + h.count, 0), 0);
+console.log("Ballon d'Or", count("Ballon"), 'Golden Boot', count('Golden Boot'), 'League titles', count('Title'), 'World Cup', count('World Cup Winner'), 'Continental', count('Winner') - count('World Cup Winner'));
+const tiers: Record<string, number> = {};
+careers.forEach((c) => { const t = c.legacy?.tier ?? 'none'; tiers[t] = (tiers[t] ?? 0) + 1; });
+console.log('legacy', tiers);
+console.log('money at end', dist(careers.map((c) => Math.round(c.player.money / 1e6))), '($M)');
+const clubsMax = careers.map((c) => Math.max(...c.history.map((h) => CLUB_MAP[Object.values(CLUB_MAP).find((x) => h.clubs.includes(x.name))?.id ?? '']?.rating ?? 0)));
+console.log('best club rating', dist(clubsMax));
+const ex = careers.find((c) => c.player.position === 'ST' && c.peakOvr >= 80) ?? careers[0];
+console.log(`\nExample: ${ex.player.name} ${ex.player.position} ${ex.player.stars}★`);
+for (const h of ex.history) console.log(`  ${h.year} age ${h.age} ${h.clubs.padEnd(28)} ovr ${h.ovrStart}->${h.ovrEnd} apps ${h.apps} (${h.starts} st) g ${h.goals} a ${h.assists} avg ${h.avgRating} pos ${h.leaguePos} ${[...h.honors, ...h.awards].join(', ')}`);

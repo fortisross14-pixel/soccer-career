@@ -3,8 +3,8 @@ import Home from './components/Home';
 import Game from './components/Game';
 
 function Shell() {
-  const { screen } = useGame();
-  return screen === 'home' ? <Home /> : <Game />;
+  const { career } = useGame();
+  return career ? <Game /> : <Home />;
 }
 
 export default function App() {

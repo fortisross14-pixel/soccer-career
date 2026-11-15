@@ -1,12 +1,11 @@
 # The Eleventh ⚽
 
-A *BitLife-for-football* career simulator. Create a 15-year-old academy prospect
-and live one season at a time — train, sign for clubs, chase trophies, break into
-the national team, win individual awards, and retire into the Hall of Fame with a
-legacy score. Built with **Vite + React + TypeScript**, deployed to **GitHub Pages**.
+A football career simulator. Turn pro at 17 and live your career **one month at a
+time**: every fixture is simulated and gets its own match report, card packs are your
+main way to grow, and transfer windows bring offers, renewals, loans and negotiation.
+Built with **Vite + React + TypeScript**, deployed to **GitHub Pages**.
 
-This is a full rewrite of an earlier single-file HTML prototype (`v6c`), restructured
-into a documents + engines architecture and rebalanced.
+> v2 is a ground-up rebuild of the core loop. v1 saves are not migrated.
 
 ## Run it
 
@@ -14,109 +13,65 @@ into a documents + engines architecture and rebalanced.
 npm install
 npm run dev        # local dev
 npm run build      # typecheck + production build
-npm run preview    # serve the build
-npm run sim        # headless balance test (400 auto-played careers)
-npm run inspect    # dump the best career per position
+npm run sim [n]    # headless balance test (auto-plays n careers, default 200)
 ```
 
-## Architecture
+## The loop
 
-The game separates **data documents** (what exists in the world) from **engines**
-(the rules that operate on it) from **UI** (React components). Nothing in the UI
-computes game logic — it only reads state and calls engine-backed store actions.
+Each turn is one month (July → June). Pressing **Play {month}**:
 
-```
-src/
-  data/            # DOCUMENTS — pure data, no logic
-    skills.ts        18 attributes, grouped + age-curve tagged
-    positions.ts     8 positions: skill weights, key skills, goal/assist expectations
-    countries.ts     leagues, reputation, national-team strength, confederation
-    clubs.ts         ~110 clubs with rating / tier / prestige / wages / continental spot
-    traits.ts        signature traits (position-gated)
-    events.ts        age-banded life events
-    awards.ts        award catalogue (Ballon d'Or, Golden Boot, TOTY, ...)
-    tournaments.ts   continental + international competition cycles
+1. Plays every fixture that month in date order (league rounds, domestic cup,
+   continental competition, international breaks, summer tournaments). The other
+   league games are simulated too, so the table is real.
+2. For each of your matches: squad selection (start / bench / dropped) based on your
+   role, form, fitness and manager trust; then a match sim with goals, assists, a rating,
+   position-specific stats, Man of the Match, injuries and a minute-by-minute timeline.
+3. Monthly development: attributes grow toward per-skill ceilings set by Potential,
+   scaled by minutes, club coaching, training focus and intensity. After your prime they decline.
+4. Rewards: a monthly training pack, plus packs for MOTM, big months, Player of the
+   Month, awards, trophies and milestones.
+5. Wages, staff costs, reputation, morale and trust update. May closes the league
+   season (titles, awards, continental qualification). June hosts the World Cup or
+   continental tournament, then the Ballon d'Or and the season rollover.
 
-  engines/         # RULES — pure functions, no React
-    overall.ts       weighted overall from skills + position + age
-    progression.ts   yearly skill growth toward a hidden potential ceiling; peak & decline
-    season.ts        squad role, appearances, goals/assists, rating, league finish, trophies
-    awards.ts        individual awards vs league-derived thresholds; reputation
-    national.ts      call-ups, caps, World Cup / continental cycles
-    transfers.ts     market value, offer generation, wages
-    legacy.ts        retirement legacy score + tier
-    newgame.ts       starting-player generator
+**Sim to next event** plays months until something needs you: a decision, a transfer
+window, the season ending, or a pile of unopened packs.
 
-  game/            # STATE + ORCHESTRATION
-    types.ts         all domain + runtime types
-    engine.ts        advanceYear() — runs the whole yearly loop through the engines
-    store.tsx        React context; actions persist to localStorage
-    save.ts          save slots + Hall of Fame persistence
+## Systems
 
-  components/      # UI — reads state, renders, calls store actions
-    Home, Game, YearSummary, ui, tabs/{Summary,Skills,Actions,Career,Honors,Timeline}
-```
+| System | Where | Notes |
+|---|---|---|
+| Calendar & fixtures | `engines/calendar.ts` | 30-day months, round-robin leagues (~30–34 matchdays), cup and continental knockouts, international breaks |
+| Match engine | `engines/match.ts` | Poisson goals from team ratings + your influence; per-position goal/assist shares; ratings, stats, timeline |
+| Month orchestration | `engines/month.ts` | `beginMonth` (windows, call-ups, decisions) / `playMonth` / season rollover |
+| Growth | `engines/growth.ts` | ~60% of growth is natural; the rest comes from cards |
+| Cards & packs | `engines/cards.ts`, `data/cards.ts` | Training (permanent), boosts (N matches), recovery, potential, traits, staff (monthly cost). Skill cards stop at your ceilings and weaken with age |
+| Market | `engines/market.ts` | July/January windows, renewals when ≤1 year left, loans for young fringe players, negotiate wage/role/years (clubs may refuse or walk away), promised roles |
+| Decisions | `engines/decisions.ts` | Contextual events with trade-offs (bench frustration, press, rehab, sponsors, etc.) and retirement |
+| National team | `engines/national.ts` | Call-ups per break; group + knockout summer tournaments |
+| Awards & legacy | `engines/awards.ts` | League awards vs scaled thresholds, Ballon d'Or, legacy tiers |
 
-### The yearly loop (`engine.advanceYear`)
-1. random life event -> 2. teenage trait unlock -> 3. club season (`season.ts`) ->
-4. individual awards (`awards.ts`) -> 5. national team (`national.ts`) ->
-6. record honors -> 7. totals / reputation / money -> 8. skill progression
-(`progression.ts`) -> 9. contract & aging -> 10. fresh transfer offers ->
-11. retirement checks. Each step returns a recap shown in the season modal.
+All randomness goes through a seeded RNG (`engines/util.ts`) whose state is stored in
+the save, so reloading doesn't re-roll outcomes and `npm run sim` is reproducible.
 
-## What was broken in the prototype (and fixed)
+## Balance (200 auto-played careers)
 
-- **`searchClubs`, `getTeamQuality`, `getTeamTier` were called but never defined** —
-  club search did nothing and advancing a year with a club threw a `ReferenceError`.
-  Replaced with first-class `ClubDef` objects and a real transfer engine.
-- **Squad `role` was never assigned** (`"youth"` at birth, never updated), so the
-  season sim always fell through to the "few minutes" branch — nobody ever got real
-  games. Role is now derived every season from your overall vs the club's rating.
-- **Overall multiplied the weighted skill average by hidden `potential` (0.78-1.4)**,
-  so potential dominated the rating and double-counted age. Overall is now a clean
-  position-weighted skill average with a youth-maturity adjustment; potential is a
-  *hidden ceiling on skill growth*, not a score multiplier.
-- Hall-of-Fame "trophies" sort and country/league comparisons were stubbed/duplicated;
-  `alert()`-driven flow replaced with an in-game recap modal and a career timeline.
+| metric | p25 | median | p75 | p90 |
+|---|---|---|---|---|
+| peak overall | 70 | 73 | 79 | 86 |
+| season apps (age 24–29) | 30 | 37 | 43 | 45 |
+| avg rating (age 24–29) | 6.57 | 6.80 | 7.05 | 7.36 |
+| best season goals (ST) | 19 | 27 | 43 | 47 |
 
-## Balance
+About half of careers reach the national team, about 1 Ballon d'Or per 7 careers, and
+about 20% end as Legend or better.
 
-`npm run sim` auto-plays 400 optimal careers. Current distribution (optimal play):
+## Known gaps / next steps
 
-| metric | p25 | median | p75 | p90 | max |
-|---|---|---|---|---|---|
-| peak overall | 67 | 72 | 80 | 85 | 95 |
-| career goals | 14 | 36 | 78 | 134 | 438 |
-
-Ballon d'Or ~ 1.5% of even optimal careers (generational), Golden Boots occasional,
-~55% reach the national team. Goalkeepers score ~0 career goals; deep playmakers post
-huge assist totals; center-backs score from set pieces — archetypes hold.
+- No promotion or relegation: club divisions are static data.
+- Teammates and opponents are generated names, not persistent squads.
+- Card catalogue and decision pool are a first pass and need more content.
 
 ## Deploy
 
-Pushing to `main` triggers `.github/workflows/deploy.yml` (GitHub Pages). Set the repo
-name to `soccer-career` or update `base` in `vite.config.ts` to match. Enable Pages ->
-Source: GitHub Actions.
-
-## Gameplay update: Phase 1 + Phase 2
-
-This build adds:
-- safe save-slot handling (new careers no longer silently overwrite slot 1)
-- separate domestic and international scouting limits
-- labeled offer sources and automatic foreign interest for reputable players
-- one sponsorship and one contract negotiation attempt per season
-- transfer requests with manager-trust consequences
-- dynamic continental qualification based on league finish
-- season objectives with success/failure consequences
-- light, balanced, and intense training plans
-- persistent morale, fitness, and manager trust affecting role, form, injuries, and development
-- automatic migration defaults for existing saves
-
-## Career Story Update
-
-- Careers now begin at age 10 in the academy.
-- Every player receives an original 1–5 star prospect assessment.
-- Year-end recaps explain coach chemistry, morale, workload, injuries, objectives and development.
-- A persistent career rival and lightweight football-world headlines create continuity beyond the player's club.
-- Retirement now produces a contextual career verdict comparing original promise with peak level, trophies, injuries and decisions.
-- Existing saves are migrated automatically with safe defaults for the new fields.
+Pushing to `main` triggers `.github/workflows/deploy.yml` (GitHub Pages, base `/soccer-career/`).
