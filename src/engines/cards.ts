@@ -133,6 +133,7 @@ export function playCard(c: Career, cardUid: string): { ok: boolean; msg: string
   if (blocker) return { ok: false, msg: blocker };
   const p = c.player;
   const parts: string[] = [];
+  const before = { ...p.skills };
 
   switch (def.kind) {
     case 'skill': {
@@ -187,6 +188,9 @@ export function playCard(c: Career, cardUid: string): { ok: boolean; msg: string
   }
   c.cards.splice(idx, 1);
   c.cardsThisMonth++;
+  const gained: Partial<Record<SkillKey, number>> = {};
+  for (const k of Object.keys(p.skills) as SkillKey[]) { const d = p.skills[k] - before[k]; if (Math.abs(d) > 0.01) gained[k] = d; }
+  (c.monthCards ??= []).push({ name: def.name, msg: parts.join(' · '), skills: gained });
   c.log.unshift({ year: c.year, month: c.month, kind: 'card', text: `Played ${def.name}: ${parts.join(', ')}` });
   return { ok: true, msg: parts.join(' · ') || 'Card used.' };
 }

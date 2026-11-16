@@ -1,5 +1,6 @@
 import type { Career, Fixture } from '../game/types';
-import { getCountry } from '../data/countries';
+import { COUNTRIES, getCountry } from '../data/countries';
+import { tournamentRaces } from './races';
 import { INTL_BREAKS, TOURNAMENT_DAYS, makeFixture, nationalOpponent, nationalTournament } from './calendar';
 import { matchOverall } from './overall';
 import { natRole, ROLE_LABEL } from './match';
@@ -53,6 +54,7 @@ export function setupTournament(c: Career): string[] {
     c.season.fixtures.push(makeFixture({ day: TOURNAMENT_DAYS[i], comp: 'national', compName: name, stage: `Group · MD${i + 1}`, usId: natId(c), oppId: nationalOpponent(c.player.country, i === 0), home: false }));
   }
   c.season.fixtures.sort((a, b) => a.day - b.day);
+  c.season.races = [...(c.season.races ?? []).filter((r) => r.comp !== 'national'), ...tournamentRaces(c.season, name, COUNTRIES.map((x) => x.name))];
   return [`🌍 Selected for the ${name} with ${c.player.country}!`];
 }
 

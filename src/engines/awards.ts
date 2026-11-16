@@ -7,8 +7,8 @@ import { chance, clamp, noise } from './util';
 import { earn, milestone, PER_EVENT } from './coins';
 import { promoteRelegate, leagueRepFor } from './world';
 import { worldSeasonEnd } from './stars';
+import { decideRaces } from './races';
 import { leagueNameFor } from '../data/countries';
-import { scorerTable } from './calendar';
 import { teamName } from './teams';
 
 export function addHonor(list: Honor[], label: string) {
@@ -40,7 +40,9 @@ export function endLeagueSeason(c: Career): string[] {
   if (s.youth) {
     const ypos = tablePosition(s);
     if (ypos === 1) { s.honors.push(`${s.leagueName} Title`); addHonor(c.honors.club, `${s.leagueName} Title`); }
-    return [ypos === 1 ? `🏆 ${s.clubName} win the ${s.leagueName}!` : `${s.clubName} finish ${ordinal(ypos)} in the ${s.leagueName}.`];
+    const yd = decideRaces(c, s, ['league']);
+    for (const w of yd.won) { s.awards.push(w); addHonor(c.honors.individual, w); }
+    return [...yd.won.map((w) => `⭐ ${w}`), ypos === 1 ? `🏆 ${s.clubName} win the ${s.leagueName}!` : `${s.clubName} finish ${ordinal(ypos)} in the ${s.leagueName}.`];
   }
   const news: string[] = [];
   const pos = tablePosition(s);
@@ -48,7 +50,6 @@ export function endLeagueSeason(c: Career): string[] {
   const country = getCountry(s.country);
   const st = s.stats;
   const p = c.player;
-  const ovr = playerOverall(p);
 
   if (pos === 1) {
     s.honors.push(`${s.leagueName} Title`); news.push(`🏆 ${s.clubName} are ${s.leagueName} champions!`);
@@ -84,22 +85,15 @@ export function endLeagueSeason(c: Career): string[] {
   const rep = leagueRepFor(country.leagueRep, s.division);
   const avg = st.leagueRated ? st.leagueRatingSum / st.leagueRated : 0;
   const regular = st.leagueApps >= leagueGames * 0.55;
-  const topFlight = s.division === 1;
   const awards: string[] = [];
-  const race = scorerTable(s, p.name);
-  const rivalBest = Math.max(...s.scorers.map((x) => x.target));
+  const decided = decideRaces(c, s, ['league', 'cup', 'continental']);
+  awards.push(...decided.won);
+  news.push(...decided.news);
+  if (decided.won.some((w) => w.endsWith('Golden Boot'))) milestone(c, 'boot1');
   const assistLine = Math.round((11 + (rep - 68) * 0.12 + noise() * 1.5) * scale);
-  if (st.leagueGoals >= 6 && (st.leagueGoals > rivalBest || (st.leagueGoals === rivalBest && chance(0.5)))) {
-    awards.push(`${s.leagueName} Golden Boot`);
-    milestone(c, 'boot1');
-  } else if (st.leagueGoals >= 5) news.push(`You finish ${ordinal(race.myRank)} in the ${s.leagueName} scoring charts with ${st.leagueGoals}.`);
   if (st.leagueAssists >= assistLine && st.leagueAssists >= 6) awards.push(`${s.leagueName} Playmaker`);
   if (regular && avg >= 7.25 && chance(0.65)) awards.push('Team of the Season');
-  if (regular && avg >= 7.55 && pos <= 3 && topFlight && ovr >= rep - 6 && chance(0.55)) awards.push(`${s.leagueName} Player of the Season`);
   if (p.age <= 21 && st.leagueApps >= leagueGames * 0.45 && avg >= 7.0 && chance(0.6)) awards.push('Young Player of the Season');
-  if (p.position === 'GK' && regular && avg >= 7.15 && st.cleanSheets >= leagueGames * 0.3 && chance(0.6)) awards.push(`${s.leagueName} Golden Glove`);
-  const contBest = Math.max(0, ...(s.contScorers ?? []).map((x) => x.target));
-  if (s.contKey !== 'none' && st.contGoals >= 3 && st.contGoals > contBest) awards.push(`${s.contName} Top Scorer`);
   s.awards.push(...awards);
   for (const a of awards) { addHonor(c.honors.individual, a); addPack(c, 'silver', a); news.push(`⭐ ${a}`); milestone(c, 'award1'); earn(c, a, PER_EVENT.award); }
 
@@ -115,6 +109,11 @@ export function worldAwards(c: Career): string[] {
   const s = c.season;
   const p = c.player;
   const news: string[] = [];
+  if (s && s.natTournament) {
+    const nt = decideRaces(c, s, ['national']);
+    for (const w of nt.won) { s.awards.push(w); addHonor(c.honors.individual, w); addPack(c, 'gold', w); earn(c, w, PER_EVENT.award); news.push(`⭐ ${w}`); }
+    news.push(...nt.news);
+  }
   const st = s?.stats;
   const rep = s ? leagueRepFor(getCountry(s.country).leagueRep, s.division) : 60;
   const leagueF = s && !s.youth ? clamp((rep / 90) ** 2, 0.2, 1.1) * ([1, 0.45, 0.2][s.division - 1] ?? 0.2) : 0;

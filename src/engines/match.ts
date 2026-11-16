@@ -165,7 +165,7 @@ export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
   // ---------- goals & involvement ----------
   const q = clamp(atk / Math.max(55, usR), 0.6, 1.35);
   const cq = clamp(creationIdx(s, pos) / Math.max(55, usR), 0.6, 1.35);
-  const gShare = clamp(GOAL_SHARE[pos] * Math.pow(q, 1.6) * traitMult(p, 'goal') * bal.share, 0, 0.45);
+  const gShare = clamp(GOAL_SHARE[pos] * Math.pow(q, 1.6) * traitMult(p, 'goal') * bal.share * (1 + (c.luck ?? 0) * 0.12), 0, 0.45);
   const aShare = clamp(ASSIST_SHARE[pos] * Math.pow(cq, 1.5) * traitMult(p, 'assist') * bal.share, 0, 0.5);
   let goals = 0;
   let assists = 0;
@@ -225,7 +225,7 @@ export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
     r -= conceded * defensive * (pos === 'GK' ? 0.22 : 0.16);
     if (pos === 'GK') r += (stats.saves ?? 0) * 0.13;
     r += ((stats.keyPasses ?? 0) - assists) * 0.08 + (stats.tackles ?? 0) * 0.04 + (stats.interceptions ?? 0) * 0.04 + (stats.dribbles ?? 0) * 0.04;
-    r += (p.form - 6.7) * 0.12 + traitMult(p, 'rating') + bal.rating + (c.mods.ratingBonus ?? 0);
+    r += (p.form - 6.7) * 0.12 + traitMult(p, 'rating') + bal.rating + (c.mods.ratingBonus ?? 0) + (c.luck ?? 0) * 0.2;
     if (p.fitness < 60) r -= (60 - p.fitness) / 40;
     if (minutes < 25) r = 6.1 + (r - 6.1) * 0.5;
     rating = clamp(round1(r), 3.5, 10);

@@ -1,12 +1,14 @@
+import { useState } from 'react';
 import { useGame } from '../../game/store';
 import type { Honor } from '../../game/types';
 import { seasonLabel } from '../../engines/month';
 import { ordinal } from '../../engines/awards';
 import { MONTHS } from '../../engines/util';
-import { EmptyState, SectionTitle, Stat } from '../ui';
+import { EmptyState, SectionTitle, Stat, SubTabs } from '../ui';
 
 export default function CareerTab() {
   const { career } = useGame();
+  const [view, setView] = useState<'overview' | 'intl' | 'honours' | 'log'>('overview');
   if (!career) return null;
   const c = career;
   const t = c.totals;
@@ -20,6 +22,8 @@ export default function CareerTab() {
           <div className="stat-num text-xl mt-3">{c.legacy.score} pts</div>
         </section>
       )}
+      <SubTabs tabs={[{ id: 'overview', label: 'Overview' }, { id: 'intl', label: 'International' }, { id: 'honours', label: 'Honours' }, { id: 'log', label: 'Log' }]} value={view} onChange={setView} />
+      {view === 'overview' && (<div className="space-y-5">
       <section className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         <Stat label="Club apps" value={t.apps} />
         <Stat label="Goals" value={t.goals} />
@@ -57,7 +61,8 @@ export default function CareerTab() {
           </div>
         )}
       </section>
-
+      </div>)}
+      {view === 'intl' && (<>
       <section className="panel p-5">
         <SectionTitle title="International" kicker={c.player.country} />
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
@@ -79,16 +84,18 @@ export default function CareerTab() {
           </div>
         ) : <p className="text-sm text-muted font-semibold">No international football yet. Call-ups come with form and a high enough overall.</p>}
       </section>
-
+      </>)}
+      {view === 'honours' && (<>
       <div className="grid md:grid-cols-3 gap-5">
         <HonorList title="Club trophies" list={c.honors.club} icon="🏆" />
         <HonorList title="Individual" list={c.honors.individual} icon="⭐" />
         <HonorList title="International" list={c.honors.national} icon="🌍" />
       </div>
-
+      </>)}
+      {view === 'log' && (<>
       <section className="panel p-5">
         <SectionTitle kicker="Timeline" title="Career log" />
-        <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-2">
+        <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-2">
           {c.log.slice(0, 120).map((e, i) => (
             <div key={i} className="flex gap-3 text-sm">
               <span className="stat-num text-[11px] text-muted w-20 shrink-0 pt-0.5">{MONTHS[e.month]} {e.month >= 6 ? e.year + 1 : e.year}</span>
@@ -97,6 +104,7 @@ export default function CareerTab() {
           ))}
         </div>
       </section>
+      </>)}
     </div>
   );
 }

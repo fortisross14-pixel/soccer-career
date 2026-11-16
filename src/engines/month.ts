@@ -1,4 +1,4 @@
-import type { Career, Fixture, MonthReport, SeasonSummary } from '../game/types';
+import type { Career, Fixture, MonthReport, SeasonSummary, SkillKey } from '../game/types';
 import { CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
 import { balanceEffects } from '../data/training';
@@ -13,8 +13,9 @@ import { windowOffers, renewalOffer, academyWindowOffers } from './market';
 import { nationalCallUp, setupTournament, afterTournamentMatch } from './national';
 import { endLeagueSeason, worldAwards, gainReputation, computeLegacy, ordinal } from './awards';
 import { ageStars } from './stars';
+import { aggregate } from './statline';
 import { rollDecision, retirementDecision } from './decisions';
-import { chance, clamp, randInt, MONTHS_LONG, calYear } from './util';
+import { chance, clamp, noise, randInt, MONTHS_LONG, calYear } from './util';
 
 export const isWindow = (m: number) => m === 0 || m === 6;
 
@@ -111,6 +112,10 @@ function recordMatch(c: Career, fx: Fixture) {
     if (s.division === 1) milestone(c, 'topflight1');
   }
   if (fx.comp === 'national') {
+    if (s.natTournament && fx.compName === s.natTournament.name) {
+      st.tournGoals = (st.tournGoals ?? 0) + r.goals;
+      if (r.rating !== null) { st.tournRatingSum = (st.tournRatingSum ?? 0) + r.rating; st.tournRated = (st.tournRated ?? 0) + 1; }
+    }
     st.intlCaps++; st.intlGoals += r.goals; st.intlAssists += r.assists;
     t.caps++; t.intlGoals += r.goals;
     if (c.national.debutAge === null) { c.national.debutAge = c.player.age; log(c, 'national', `International debut for ${c.player.country}!`); addPack(c, 'silver', 'International debut'); }
@@ -120,7 +125,8 @@ function recordMatch(c: Career, fx: Fixture) {
       st.leagueApps++; st.leagueGoals += r.goals; st.leagueAssists += r.assists;
       if (r.rating !== null) { st.leagueRatingSum += r.rating; st.leagueRated++; }
     }
-    if (fx.comp === 'continental') st.contGoals += r.goals;
+    if (fx.comp === 'continental') { st.contGoals += r.goals; if (r.rating !== null) { st.contRatingSum = (st.contRatingSum ?? 0) + r.rating; st.contRated = (st.contRated ?? 0) + 1; } }
+    if (fx.comp === 'cup') st.cupGoals = (st.cupGoals ?? 0) + r.goals;
   }
   st.apps++; st.minutes += r.minutes; st.goals += r.goals; st.assists += r.assists;
   if (r.involvement === 'started') st.starts++;
@@ -218,6 +224,8 @@ export function playMonth(c: Career): MonthReport {
   const packsBefore = new Set(c.packs.map((x) => x.uid));
   const coinsBefore = c.pendingCoins.length;
 
+  // a little luck every month: most months are average, some are great or rough
+  c.luck = Math.round(noise() * 100) / 100;
   let lastDay = start;
   let guard = 0;
   // process league rounds and our other fixtures in date order; knockouts can add fixtures as we go
@@ -259,6 +267,10 @@ export function playMonth(c: Career): MonthReport {
   const clubMatches = played.map((id) => s.fixtures.find((f) => f.id === id)!).filter((f) => f.comp !== 'national');
   const minutes = mine.filter((f) => f.comp !== 'national').reduce((sum, f) => sum + f.report!.minutes, 0);
   const deltas = monthlyGrowth(c, minutes, clubMatches.length);
+  // fold this month's card plays into the development totals
+  const cardsPlayed = c.monthCards ?? [];
+  for (const cp of cardsPlayed) for (const [k, v] of Object.entries(cp.skills)) deltas[k as SkillKey] = (deltas[k as SkillKey] ?? 0) + (v as number);
+  c.monthCards = [];
   const rated = mine.filter((f) => f.report!.rating !== null);
   const avg = rated.length ? rated.reduce((sum, f) => sum + f.report!.rating!, 0) / rated.length : 0;
   const ga = mine.reduce((sum, f) => sum + f.report!.goals + f.report!.assists, 0);
@@ -298,7 +310,7 @@ export function playMonth(c: Career): MonthReport {
   c.cardsThisMonth = 0;
 
   const packs = c.packs.filter((x) => !packsBefore.has(x.uid));
-  const report: MonthReport = { year: c.year, month: c.month, fixtures: played, skillDeltas: deltas, ovrBefore, ovrAfter, packs, news, income, costs, coins: [] };
+  const report: MonthReport = { year: c.year, month: c.month, fixtures: played, skillDeltas: deltas, ovrBefore, ovrAfter, packs, news, income, costs, coins: [], cardsPlayed, luck: c.luck };
 
   if (c.month === 11) {
     news.push(...worldAwards(c));
@@ -325,6 +337,8 @@ function rollover(c: Career, news: string[]): SeasonSummary {
     ovrStart: s.ovrStart, ovrEnd: playerOverall(p),
   };
   summary.division = s.division;
+  summary.stats = aggregate(s.fixtures.filter((f) => f.comp !== 'national'));
+  summary.intlStats = aggregate(s.fixtures.filter((f) => f.comp === 'national'));
   summary.youth = s.youth;
   summary.ballonRank = c.awardsHistory[c.awardsHistory.length - 1]?.myBallonRank ?? null;
   if (s.natTournament?.qualified) {

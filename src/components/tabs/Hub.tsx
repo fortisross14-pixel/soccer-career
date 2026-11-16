@@ -167,11 +167,13 @@ function PlanPanel() {
       <input id="balance" type="range" min={0} max={100} step={5} value={bal} onChange={(ev) => onBal(+ev.target.value)} className="scarf-range" aria-label="Balance between training and match day" />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-        <Effect label="Growth" value={`×${e.growth.toFixed(2)}`} good={e.growth >= 1} />
-        <Effect label="Match rating" value={`${e.rating >= 0 ? '+' : ''}${e.rating.toFixed(2)}`} good={e.rating >= 0} />
+        <Effect label="Growth" value={`×${(e.growth * 0.7).toFixed(1)}–${(e.growth * 1.3).toFixed(1)}`} good={e.growth >= 1} />
+        <Effect label="Match rating" value={`${sign(e.rating - 0.2)}…${sign(e.rating + 0.2)}`} good={e.rating >= 0} />
         <Effect label="Scout buzz" value={`×${e.scout.toFixed(2)}`} good={e.scout >= 1} />
         <Effect label="Injury /90" value={`${risk.toFixed(1)}%`} good={risk < 1.3} />
       </div>
+
+      <p className="text-[11px] text-muted font-semibold mt-2">Ranges include luck: most months land in the middle, but a hot streak or a flat month can happen whatever you choose.</p>
 
       <div className="mt-5">
         <div className="text-xs font-extrabold uppercase tracking-wider mb-2">Training focus</div>
@@ -210,6 +212,8 @@ function PlanPanel() {
     </section>
   );
 }
+
+const sign = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}`;
 
 function Effect({ label, value, good }: { label: string; value: string; good: boolean }) {
   return (

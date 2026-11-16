@@ -6,7 +6,7 @@ import { TRAIT_MAP } from '../../data/traits';
 import { buyPack, cardBlocker, openPack, packPrice, releaseStaff, sellCard, playCard, SELL_VALUE, handLimit, boostLimit, playsPerMonth } from '../../engines/cards';
 import { burstFrom } from '../fx';
 import { fmtMoney } from '../../engines/util';
-import { EmptyState, GameCard, Modal, SectionTitle } from '../ui';
+import { EmptyState, GameCard, Modal, SectionTitle, SubTabs } from '../ui';
 
 const FILTERS: { id: CardKind | 'all'; label: string }[] = [
   { id: 'all', label: 'All' }, { id: 'skill', label: 'Training' }, { id: 'boost', label: 'Boosts' }, { id: 'recovery', label: 'Recovery' },
@@ -19,6 +19,7 @@ export default function Cards() {
   const [selected, setSelected] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [tearing, setTearing] = useState<string | null>(null);
+  const [view, setView] = useState<'hand' | 'shop'>('hand');
   if (!career) return null;
   const c = career;
   const p = c.player;
@@ -45,6 +46,9 @@ export default function Cards() {
     <div className="space-y-5">
       {msg && <div className="text-sm rounded-md bg-[#fff1d6] border border-ink px-3 py-2">{msg}</div>}
 
+      <SubTabs tabs={[{ id: 'hand', label: 'Hand', badge: c.packs.length || undefined }, { id: 'shop', label: 'Shop' }]} value={view} onChange={setView} />
+      {view === 'hand' && (
+      <div className="space-y-5">
       <section className="panel p-5">
         <SectionTitle kicker="Unopened" title={`Packs (${c.packs.length})`} right={c.packs.length > 1 ? <button className="btn-white btn-sm text-xs" onClick={() => open(c.packs[0].uid)}>Open next</button> : undefined} />
         {c.packs.length === 0 ? <EmptyState>Earn packs every month, for Man of the Match displays, big months, awards and trophies, or buy them below.</EmptyState> : (
@@ -104,7 +108,9 @@ export default function Cards() {
           ))}
         </section>
       </div>
-
+      </div>
+      )}
+      {view === 'shop' && (
       <section className="panel p-5">
         <SectionTitle kicker={`Bank ${fmtMoney(p.money)}`} title="Pack store" />
         <p className="text-xs text-muted mb-3">Prices rise 35% with every pack you buy this season, then reset in July.</p>
@@ -124,6 +130,7 @@ export default function Cards() {
           })}
         </div>
       </section>
+      )}
 
       {sel && selDef && <CardModal def={selDef} onClose={() => setSelected(null)} onUse={() => { const el = document.activeElement; const r = act((x) => playCard(x, sel.uid)); setMsg(r.msg); if (r.ok) { burstFrom(el, 30); setSelected(null); } }} onSell={() => { const v = act((x) => sellCard(x, sel.uid)); setMsg(`Sold for ${fmtMoney(v)}.`); setSelected(null); }} blocker={cardBlocker(c, selDef)} />}
     </div>

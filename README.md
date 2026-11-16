@@ -116,6 +116,23 @@ better, but you play less if you're not good enough). You play a youth league ea
 - Visual style: **Terrace** (matchday stickers, scarves, pitch stripes), with ticker-tape, sticker-slap
   goal celebrations, pack tearing and coin toasts (`components/FxLayer.tsx`).
 
+## Competitions & award races
+
+The **Competitions** tab has a sub-tab for every competition you're in this season: league (including
+youth leagues), domestic cup, continental competition and national team. Each has **award races** with
+about 6 rivals and your own row, even when you're outside the top 5:
+- league: Golden Boot, Player of the Season (MVP), Best Goalkeeper / Defender / Midfielder / Forward
+- cup: top scorer; continental: top scorer and best player; summer tournament: Golden Boot and Golden Ball
+
+Rivals' season totals are fixed in advance and revealed as the season goes. Races can be runaway wins,
+normal, or very tight (`engines/races.ts`). Rating awards need a minimum number of rated games.
+
+## Player screen
+
+Player has **Skills**, **Stats** and **Career** sub-tabs. Stats shows matches, minutes, goals, assists
+and position stats with totals and per-90 values (season vs career, for all matches, club or national
+team). Pick any stat to chart it month by month this season or season by season across the career.
+
 ## The football world
 
 About 45 persistent fictional **world stars** age, develop, change clubs, score, win titles and retire

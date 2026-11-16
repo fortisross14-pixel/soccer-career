@@ -56,6 +56,9 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
   const income = reports.reduce((s, r) => s + r.income - r.costs, 0);
   const title = reports.length === 1 ? `${MONTHS_LONG[first.month]} ${calYear(first.year, first.month)}` : `${MONTHS_LONG[first.month]} – ${MONTHS_LONG[last.month]}`;
   const season = last.seasonEnd;
+  const cardsPlayed = reports.flatMap((r) => r.cardsPlayed ?? []);
+  const lucks = reports.map((r) => r.luck).filter((x): x is number => typeof x === 'number');
+  const luck = lucks.length ? lucks.reduce((a, b) => a + b, 0) / lucks.length : null;
 
   return (
     <Modal onClose={closeReports} wide>
@@ -108,6 +111,25 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
           </div>
         )}
 
+        {(cardsPlayed.length > 0 || luck !== null) && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <div className="eyebrow mb-2">Cards played</div>
+              {cardsPlayed.length === 0 ? <p className="text-sm text-muted font-semibold">None this time.</p> : (
+                <ul className="space-y-1.5">{cardsPlayed.map((cp, i) => <li key={i} className="sticker-flat px-3 py-1.5 text-sm"><span className="font-extrabold">{cp.name}</span><span className="block text-[11px] text-muted font-semibold">{cp.msg}</span></li>)}</ul>
+              )}
+            </div>
+            {luck !== null && (
+              <div>
+                <div className="eyebrow mb-2">Luck</div>
+                <div className={`sticker-flat px-3 py-2 text-sm font-bold ${luck > 0.4 ? '!bg-[#3fcf7f]' : luck < -0.4 ? '!bg-[#ffb3b8]' : ''}`}>
+                  {luck > 0.4 ? '🍀 Lucky month: everything clicked.' : luck < -0.4 ? '🌧 Rough month: nothing went your way.' : luck > 0.1 ? 'Slightly kind month.' : luck < -0.1 ? 'Slightly unlucky month.' : 'An ordinary month.'}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {news.length > 0 && (
           <div>
             <div className="eyebrow mb-2">News</div>
@@ -117,7 +139,7 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
 
         <div className="grid sm:grid-cols-3 gap-4">
           <div>
-            <div className="eyebrow mb-2">Development</div>
+            <div className="eyebrow mb-2">Development · training + cards</div>
             {topDeltas.length === 0 ? <p className="text-sm text-muted font-semibold">No visible change.</p> : (
               <div className="space-y-1 text-sm">
                 {topDeltas.map(([k, v]) => <div key={k} className="flex justify-between font-semibold"><span>{SKILL_MAP[k as SkillKey].label}</span><span className={`stat-num ${(v as number) > 0 ? 'text-[#178a4c]' : 'text-red'}`}>{(v as number) > 0 ? '+' : ''}{(v as number).toFixed(1)}</span></div>)}

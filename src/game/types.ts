@@ -1,4 +1,5 @@
 import type { AwardYear, WorldStar } from '../engines/stars';
+import type { Race } from '../engines/races';
 
 // ============================================================
 // Domain types. Static "documents" (clubs, skills, cards...) and
@@ -163,6 +164,8 @@ export interface SeasonStats {
   leagueApps: number; leagueGoals: number; leagueAssists: number; leagueRatingSum: number; leagueRated: number;
   contGoals: number;
   intlCaps: number; intlGoals: number; intlAssists: number;
+  cupGoals?: number; contRatingSum?: number; contRated?: number;
+  tournGoals?: number; tournRatingSum?: number; tournRated?: number;
 }
 
 export interface ScorerRival { name: string; clubId: string; target: number; jitter: number; starId?: string }
@@ -187,6 +190,7 @@ export interface SeasonState {
   stats: SeasonStats;
   scorers: ScorerRival[];
   contScorers?: ScorerRival[];
+  races?: Race[];
   honors: string[];
   awards: string[];
   ovrStart: number;
@@ -266,6 +270,8 @@ export interface Decision {
   choices: DecisionChoice[];
 }
 
+export interface CardPlay { name: string; msg: string; skills: Partial<Record<SkillKey, number>> }
+
 export interface MonthReport {
   year: number;
   month: number;
@@ -275,6 +281,8 @@ export interface MonthReport {
   ovrAfter: number;
   packs: PackInstance[];
   coins: CoinEvent[];
+  cardsPlayed?: CardPlay[];
+  luck?: number;
   news: string[];
   income: number;
   costs: number;
@@ -300,6 +308,8 @@ export interface SeasonSummary {
   youth?: boolean;
   natResult?: string;
   ballonRank?: number | null;
+  stats?: Record<string, number>;   // club matches stat line
+  intlStats?: Record<string, number>;
 }
 
 export interface Honor { label: string; count: number }
@@ -339,6 +349,8 @@ export interface Career {
   focus: string;                // training focus id
   plan: { balance: number };    // 0 = all training ground, 100 = all match day
   cardsThisMonth: number;
+  monthCards?: CardPlay[];
+  luck?: number;
   mods: CareerMods;
   relics: string[];
   milestones: string[];

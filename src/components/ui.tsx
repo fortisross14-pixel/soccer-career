@@ -109,3 +109,15 @@ export function SectionTitle({ kicker, title, right }: { kicker?: string; title:
 export function Coin() {
   return <span className="coin" aria-hidden="true">c</span>;
 }
+
+export function SubTabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string; badge?: ReactNode }[]; value: T; onChange: (t: T) => void }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-5">
+      {tabs.map((t) => (
+        <button key={t.id} onClick={() => onChange(t.id)} className={`whitespace-nowrap px-3.5 py-2 rounded-lg border-[3px] border-ink font-display uppercase text-sm transition ${value === t.id ? 'bg-red text-white shadow-[3px_3px_0_#121212] -rotate-1' : 'bg-bone hover:-translate-y-0.5'}`}>
+          {t.label}{t.badge !== undefined && <span className="ml-1.5 text-[10px] font-sans font-black bg-sun text-ink border border-ink rounded px-1">{t.badge}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}

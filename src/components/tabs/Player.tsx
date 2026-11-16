@@ -3,14 +3,12 @@ import { CATEGORY_ORDER, SKILLS } from '../../data/skills';
 import { POSITION_MAP } from '../../data/positions';
 import { TRAIT_MAP } from '../../data/traits';
 import { playerOverall, potentialOverall, skillCap } from '../../engines/overall';
-import { SectionTitle, Stat } from '../ui';
+import { SectionTitle, Stat, SubTabs } from '../ui';
+import { useState } from 'react';
+import PlayerStats from './PlayerStats';
+import CareerTab from './CareerTab';
 
-const STAT_LABELS: Record<string, string> = {
-  shots: 'Shots', onTarget: 'On target', keyPasses: 'Key passes', passes: 'Passes', dribbles: 'Dribbles', tackles: 'Tackles',
-  interceptions: 'Interceptions', aerials: 'Aerials won', saves: 'Saves', conceded: 'Conceded',
-};
-
-export default function PlayerTab() {
+function SkillsView() {
   const { career } = useGame();
   if (!career) return null;
   const c = career;
@@ -19,9 +17,6 @@ export default function PlayerTab() {
   const ovr = playerOverall(p);
   const pot = potentialOverall(p);
   const lastDeltas = c.lastReport?.skillDeltas ?? {};
-  const played = (c.season?.fixtures ?? []).filter((f) => f.report && f.report.minutes > 0);
-  const agg: Record<string, number> = {};
-  for (const f of played) for (const [k, v] of Object.entries(f.report!.stats)) if (k !== 'passAcc' && k !== 'motm') agg[k] = (agg[k] ?? 0) + v;
   const phase = p.age < p.peakStart ? 'Developing' : p.age <= p.peakEnd ? 'Prime' : 'Declining';
 
   return (
@@ -73,14 +68,20 @@ export default function PlayerTab() {
             {p.traits.length > 0 && <div>Traits: <span className="text-ink">{p.traits.map((t) => TRAIT_MAP[t]?.name).join(', ')}</span></div>}
           </div>
         </section>
-        <section className="panel p-5">
-          <SectionTitle kicker="This season" title="Match stats" />
-          {played.length === 0 ? <p className="text-sm text-muted">No appearances yet.</p> : (
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(agg).map(([k, v]) => <Stat key={k} label={STAT_LABELS[k] ?? k} value={v} sub={`${(v / played.length).toFixed(1)} per game`} />)}
-            </div>
-          )}
-        </section>
+      </div>
+    </div>
+  );
+}
+
+export default function PlayerTab() {
+  const [view, setView] = useState<'skills' | 'stats' | 'career'>('skills');
+  return (
+    <div>
+      <SubTabs tabs={[{ id: 'skills', label: 'Skills' }, { id: 'stats', label: 'Stats' }, { id: 'career', label: 'Career' }]} value={view} onChange={setView} />
+      <div className="animate-fade-up" key={view}>
+        {view === 'skills' && <SkillsView />}
+        {view === 'stats' && <PlayerStats />}
+        {view === 'career' && <CareerTab />}
       </div>
     </div>
   );

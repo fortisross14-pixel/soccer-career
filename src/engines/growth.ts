@@ -42,7 +42,7 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
         frac *= 0.6 + relevance * 0.5;
         frac *= 0.8 + coaching * 0.4;
         frac *= minutesF;
-        frac *= bal.growth * (1 + STAFF_PERK(p, 'growth')) * (p.age <= 21 ? 1 + c.mods.youthGrowth : 1);
+        frac *= bal.growth * (1 + (c.luck ?? 0) * 0.3) * (1 + STAFF_PERK(p, 'growth')) * (p.age <= 21 ? 1 + c.mods.youthGrowth : 1);
         frac *= 0.9 + p.morale / 500;
         if (def.ageCurve === 'mental') frac *= 1.15;
         if (def.ageCurve === 'physical' && p.age > 24) frac *= 0.45;

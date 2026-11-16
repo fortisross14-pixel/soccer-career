@@ -7,6 +7,7 @@ import { pick, shuffle, uid, poisson, clamp, chance, noise, rng } from './util';
 import { teamRating, teamName, academyId, youthLabel } from './teams';
 import { playerOverall } from './overall';
 import { divOf, leagueClubs, leagueRepFor } from './world';
+import { contRaces, cupRaces, leagueRaces } from './races';
 
 // Season Y runs from day 0 (1 July Y) to day 359 (30 June Y+1); 30-day months.
 export const LEAGUE_START = 36;
@@ -27,6 +28,7 @@ export function emptyStats(): SeasonStats {
     apps: 0, starts: 0, minutes: 0, goals: 0, assists: 0, ratingSum: 0, rated: 0, motm: 0, cleanSheets: 0,
     leagueApps: 0, leagueGoals: 0, leagueAssists: 0, leagueRatingSum: 0, leagueRated: 0, contGoals: 0,
     intlCaps: 0, intlGoals: 0, intlAssists: 0,
+    cupGoals: 0, contRatingSum: 0, contRated: 0, tournGoals: 0, tournRatingSum: 0, tournRated: 0,
   };
 }
 
@@ -191,7 +193,7 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
   }
 
   fixtures.sort((a, b) => a.day - b.day);
-  return {
+  const season: SeasonState = {
     year: career.year,
     clubId,
     clubName: club.name,
@@ -215,6 +217,14 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
     clubsThisSeason: [club.name],
     ended: false,
   };
+  const peerIds = peers.map((x) => x.id);
+  season.races = [...leagueRaces(career, season, peerIds, leagueRepFor(country.leagueRep, division))];
+  if (fresh) season.races.push(...cupRaces(season, `${country.name} Cup`, clubsInCountry(club.country).map((x) => x.id)));
+  if (contKey !== 'none') {
+    const confed = confedOf(club.country);
+    season.races.push(...contRaces(career, season, CLUBS.filter((x) => x.continental === contKey && confedOf(x.country) === confed).map((x) => x.id)));
+  }
+  return season;
 }
 
 /** the league's scoring race: rival forwards with season targets */
@@ -235,7 +245,9 @@ export interface ScorerRow { name: string; clubId: string; goals: number; me: bo
 /** current top-scorer table including the player */
 export function scorerTable(s: SeasonState, playerName: string): { rows: ScorerRow[]; myRank: number } {
   const prog = s.rounds.length ? s.roundsPlayed / s.rounds.length : 0;
-  const rows: ScorerRow[] = s.scorers.map((x) => ({ name: x.name, clubId: x.clubId, goals: Math.max(0, Math.floor(x.target * prog + x.jitter * prog + 0.5 * prog)), me: false }));
+  const race = s.races?.find((r) => r.id === 'lg-goals');
+  const src = race ? race.rivals.map((r) => ({ name: r.name, clubId: r.team, target: r.target, jitter: r.jitter })) : s.scorers;
+  const rows: ScorerRow[] = src.map((x) => ({ name: x.name, clubId: x.clubId, goals: Math.max(0, Math.floor(x.target * prog + x.jitter * prog + 0.5 * prog)), me: false }));
   rows.push({ name: playerName, clubId: s.clubId, goals: s.stats.leagueGoals, me: true });
   rows.sort((a, b) => b.goals - a.goals || (a.me ? -1 : b.me ? 1 : 0));
   return { rows, myRank: rows.findIndex((r) => r.me) + 1 };
@@ -269,12 +281,14 @@ export function buildYouthSeason(career: Career, clubId: string, fromDay = 0): S
     const home = pair[0] === usId;
     fixtures.push(makeFixture({ day: r.day, comp: 'league', compName: leagueName, stage: `Round ${i + 1}`, usId, oppId: home ? pair[1] : pair[0], home }));
   });
-  return {
+  const ys: SeasonState = {
     year: career.year, clubId: usId, clubName: teamName(usId), country: club.country, leagueName, division: 3,
     table, rounds, roundsPlayed, fixtures, cupAlive: false, contKey: 'none', contName: '', contAlive: false,
     stats: emptyStats(), scorers: [], honors: [], awards: [], ovrStart: playerOverall(career.player),
     clubsThisSeason: [teamName(usId)], ended: false, youth: true,
   };
+  ys.races = leagueRaces(career, ys, ids, 60);
+  return ys;
 }
 
 function withStars(generic: ScorerRival[], stars: ScorerRival[]): ScorerRival[] {

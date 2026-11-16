@@ -7,11 +7,10 @@ import { canPlay, seasonLabel } from '../engines/month';
 import { MONTHS_LONG, calYear, fmtMoney } from '../engines/util';
 import Hub from './tabs/Hub';
 import Fixtures from './tabs/Fixtures';
-import Table from './tabs/Table';
+import Competitions from './tabs/Competitions';
 import Cards from './tabs/Cards';
 import PlayerTab from './tabs/Player';
 import Contract from './tabs/Contract';
-import CareerTab from './tabs/CareerTab';
 import WorldTab from './tabs/WorldTab';
 import MonthReportModal from './modals/MonthReportModal';
 import MatchModal from './modals/MatchModal';
@@ -23,12 +22,11 @@ import { Coin } from './ui';
 const TABS = [
   { id: 'hub', label: 'Hub' },
   { id: 'fixtures', label: 'Matches' },
-  { id: 'table', label: 'Table' },
+  { id: 'table', label: 'Competitions' },
   { id: 'world', label: 'World' },
   { id: 'cards', label: 'Cards' },
   { id: 'player', label: 'Player' },
   { id: 'contract', label: 'Contract' },
-  { id: 'career', label: 'Career' },
 ] as const;
 export type TabId = (typeof TABS)[number]['id'];
 
@@ -78,12 +76,11 @@ export default function Game() {
       <main className="max-w-6xl mx-auto px-4 py-6 animate-fade-up" key={tab}>
         {tab === 'hub' && <Hub goTo={setTab} />}
         {tab === 'fixtures' && <Fixtures />}
-        {tab === 'table' && <Table />}
+        {tab === 'table' && <Competitions />}
         {tab === 'world' && <WorldTab />}
         {tab === 'cards' && <Cards />}
         {tab === 'player' && <PlayerTab />}
         {tab === 'contract' && <Contract />}
-        {tab === 'career' && <CareerTab />}
       </main>
 
       <div className="fixed bottom-0 inset-x-0 z-30 bg-ink text-white border-t-[3px] border-ink">
