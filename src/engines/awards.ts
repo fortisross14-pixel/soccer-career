@@ -114,7 +114,7 @@ export function ballonDor(c: Career): string | null {
   const trophyPts = s.honors.reduce((sum, h) => sum + (h.includes('World Cup') ? 12 : h.includes('Winner') ? 8 : h.includes('Title') ? 5 : 3), 0);
   const output = p.position === 'GK' || p.position === 'CB' ? st.cleanSheets * 0.5 : (st.goals + st.assists * 0.7) / 2.2;
   const campaign = (ovr - 84) * 2.2 + trophyPts + output + (avg - 7) * 10 + (p.reputation - 80) * 0.4 + noise() * 4;
-  if (ovr >= 88 && s.division === 1 && chance(clamp((campaign - 34) / 45, 0, 0.55))) {
+  if (ovr >= 91 && s.division === 1 && chance(clamp((campaign - 44) / 45, 0, 0.5))) {
     s.awards.push("Ballon d'Or");
     addHonor(c.honors.individual, "Ballon d'Or");
     addPack(c, 'elite', "Ballon d'Or");
@@ -153,4 +153,16 @@ export function computeLegacy(c: Career): { score: number; tier: string; blurb: 
   else if (score >= 300) { tier = 'Solid Pro'; blurb = 'A dependable professional with a respectable career.'; }
   else { tier = 'Journeyman'; blurb = 'A grafter who lived the dream, if only for a while.'; }
   return { score: Math.round(score), tier, blurb };
+}
+
+export interface Grade { letter: 'S' | 'A' | 'B' | 'C' | 'D'; title: string }
+
+/** S–D player tier from peak level and achievements */
+export function playerGrade(c: Career): Grade {
+  const legacy = c.legacy?.score ?? computeLegacy(c).score;
+  if (c.peakOvr >= 93 || legacy >= 2700) return { letter: 'S', title: 'All-time great' };
+  if (c.peakOvr >= 86 || legacy >= 1700) return { letter: 'A', title: 'World-class star' };
+  if (c.peakOvr >= 78 || legacy >= 1000) return { letter: 'B', title: 'Top-flight regular' };
+  if (c.peakOvr >= 70) return { letter: 'C', title: 'Professional' };
+  return { letter: 'D', title: 'Lower-league grafter' };
 }

@@ -5,7 +5,7 @@ import { allSlots, deleteSlot, loadHof } from '../game/save';
 import { buyUpgrade, openCrate, toggleEquip, upgradeCost } from '../game/meta';
 import { COUNTRIES } from '../data/countries';
 import { POSITIONS } from '../data/positions';
-import { CRATES, RELICS, RELIC_MAP, RELIC_SLOTS, UPGRADES } from '../data/legacy';
+import { CRATES, TRINKETS, TRINKET_MAP, TRINKET_COLOR, TRINKET_RARITIES, UPGRADES, trinketSlots } from '../data/legacy';
 import { MILESTONES } from '../engines/coins';
 import { seasonLabel } from '../engines/month';
 import { Coin } from './ui';
@@ -13,9 +13,8 @@ import { fx, burstFrom } from './fx';
 
 type Tab = 'play' | 'shop' | 'crates' | 'milestones' | 'hof';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'play', label: 'Play' }, { id: 'shop', label: 'Legacy shop' }, { id: 'crates', label: 'Crates' }, { id: 'milestones', label: 'Milestones' }, { id: 'hof', label: 'Hall of fame' },
+  { id: 'play', label: 'Play' }, { id: 'shop', label: 'Legacy shop' }, { id: 'crates', label: 'Trinkets' }, { id: 'milestones', label: 'Milestones' }, { id: 'hof', label: 'Hall of fame' },
 ];
-const RARITY_BG: Record<string, string> = { common: 'var(--common)', rare: 'var(--rare)', epic: 'var(--epic)', legendary: 'var(--legendary)' };
 
 export default function Home() {
   const { meta } = useGame();
@@ -62,6 +61,7 @@ function PlayTab({ goShop, goCrates }: { goShop: () => void; goCrates: () => voi
   const [error, setError] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<number | null>(null);
   const owned = UPGRADES.filter((u) => (meta.upgrades[u.id] ?? 0) > 0);
+  const tSlots = trinketSlots(meta.upgrades);
 
   const start = () => {
     if (!newCareer(name || 'Alex Rivera', country, position)) setError('All three save slots are full. Delete a career first.');
@@ -89,21 +89,22 @@ function PlayTab({ goShop, goCrates }: { goShop: () => void; goCrates: () => voi
 
         <div className="sticker-flat p-3 mb-5">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-extrabold uppercase tracking-wider">Relics for this run · {meta.equipped.length}/{RELIC_SLOTS}</span>
-            <button className="text-xs font-extrabold underline" onClick={goCrates}>Manage</button>
+            <span className="text-xs font-extrabold uppercase tracking-wider">Trinkets this run · {meta.equipped.length}/{tSlots}</span>
+            <button className="text-xs font-extrabold underline" onClick={goCrates}>{meta.trinkets.length ? 'Change' : 'Get trinkets'}</button>
           </div>
-          <div className="flex gap-2">
-            {Array.from({ length: RELIC_SLOTS }, (_, i) => {
-              const r = meta.equipped[i] ? RELIC_MAP[meta.equipped[i]] : null;
+          <div className="grid grid-cols-3 gap-2">
+            {Array.from({ length: 3 }, (_, i) => {
+              const r = meta.equipped[i] ? TRINKET_MAP[meta.equipped[i]] : null;
+              const locked = i >= tSlots;
               return (
-                <div key={i} className={`flex-1 rounded-lg border-2 ${r ? 'border-ink' : 'border-dashed border-ink/40'} p-2 text-center min-h-[64px]`} style={r ? { background: RARITY_BG[r.rarity] } : undefined}>
-                  {r ? <><div className="text-xl">{r.icon}</div><div className="text-[10px] font-extrabold leading-tight">{r.name}</div></> : <div className="text-[10px] text-muted font-bold pt-4">Empty</div>}
+                <div key={i} className={`rounded-lg border-2 ${r ? 'border-ink' : 'border-dashed border-ink/40'} p-2 text-center min-h-[68px] ${locked ? 'opacity-50' : ''}`} style={r ? { background: TRINKET_COLOR[r.rarity] } : undefined}>
+                  {r ? <><div className="text-xl">{r.icon}</div><div className="text-[10px] font-extrabold leading-tight">{r.name}</div></> : <div className="text-[10px] text-muted font-bold pt-4">{locked ? '🔒 Locked' : 'Empty'}</div>}
                 </div>
               );
             })}
           </div>
           <div className="text-[11px] text-muted font-semibold mt-2">
-            {owned.length ? <>Active upgrades: {owned.map((u) => `${u.name} ${meta.upgrades[u.id]}`).join(' · ')}</> : <>No legacy upgrades yet. <button className="underline font-bold" onClick={goShop}>Visit the shop</button></>}
+            {owned.length ? <>Upgrades: {owned.map((u) => `${u.name} ${meta.upgrades[u.id]}`).join(' · ')}</> : <>No legacy upgrades yet. <button className="underline font-bold" onClick={goShop}>Visit the shop</button></>}
           </div>
         </div>
 
@@ -191,68 +192,79 @@ function ShopTab() {
 function CratesTab() {
   const { meta, metaAct } = useGame();
   const [opening, setOpening] = useState<string | null>(null);
-  const [found, setFound] = useState<string | null>(null);
+  const [found, setFound] = useState<{ id: string; dup: boolean; refund: number } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const counts = meta.relics.reduce<Record<string, number>>((acc, id) => { acc[id] = (acc[id] ?? 0) + 1; return acc; }, {});
+  const slots = trinketSlots(meta.upgrades);
 
   const open = (crateId: string) => {
     setMsg(null);
     setFound(null);
-    let relic: string | null = null;
-    const err = metaAct((m) => { const r = openCrate(m, crateId); if (typeof r === 'string') return r; relic = r.relic; return r.meta; });
+    let res: { id: string; dup: boolean; refund: number } | null = null;
+    const err = metaAct((m) => { const r = openCrate(m, crateId); if (typeof r === 'string') return r; res = { id: r.trinket, dup: r.duplicate, refund: r.refund }; return r.meta; });
     if (err) { setMsg(err); return; }
     setOpening(crateId);
     setTimeout(() => {
       setOpening(null);
-      setFound(relic);
-      const r = relic ? RELIC_MAP[relic] : null;
-      if (r) fx({ type: 'stamp', text: r.rarity === 'legendary' ? 'LEGENDARY!' : r.name, tone: r.rarity === 'legendary' ? 'sun' : 'red' });
+      setFound(res);
+      const t = res ? TRINKET_MAP[(res as { id: string }).id] : null;
+      if (t && !(res as { dup: boolean }).dup) fx({ type: 'stamp', text: t.rarity === 'legendary' || t.rarity === 'epic' ? `${t.rarity}!` : t.name, tone: t.rarity === 'legendary' ? 'sun' : 'red' });
     }, 900);
   };
 
   return (
-    <div className="grid lg:grid-cols-[1fr_1.3fr] gap-6">
-      <section className="panel p-5 sm:p-6">
+    <div className="grid lg:grid-cols-[1fr_1.35fr] gap-6">
+      <section className="panel p-5 sm:p-6 h-fit">
         <h2 className="font-display text-3xl uppercase leading-none">Crates</h2>
-        <p className="text-sm text-muted font-semibold mt-2 mb-5">Each crate holds one relic: a one-run boost you equip before kicking off a career.</p>
-        <div className="grid grid-cols-2 gap-4">
+        <p className="text-sm text-muted font-semibold mt-2 mb-5">Each crate holds one trinket. Trinkets are yours forever: slot them into every career you start.</p>
+        <div className="grid grid-cols-3 gap-3">
           {CRATES.map((cr) => (
-            <div key={cr.id} className="flex flex-col gap-3">
-              <button className={`pack ${cr.id === 'premium' ? 'pack-gold' : 'pack-bronze'} ${opening === cr.id ? 'pack-shake' : ''}`} disabled={!!opening} onClick={() => open(cr.id)}>
-                <span className="text-[10px] font-black uppercase tracking-[.14em] relative">1 relic</span>
-                <span className="font-display text-2xl uppercase leading-none relative">{cr.name}</span>
-                <span className="text-[10px] font-bold relative">{Math.round((cr.odds.epic + cr.odds.legendary) * 100)}% epic or better</span>
+            <div key={cr.id} className="flex flex-col gap-2">
+              <button className={`pack ${cr.id === 'legend' ? 'pack-elite' : cr.id === 'premium' ? 'pack-gold' : 'pack-bronze'} ${opening === cr.id ? 'pack-shake' : ''}`} disabled={!!opening} onClick={() => open(cr.id)}>
+                <span className="text-[9px] font-black uppercase tracking-[.12em] relative">1 trinket</span>
+                <span className="font-display text-lg sm:text-xl uppercase leading-none relative">{cr.name}</span>
+                <span className="text-[9px] font-bold relative leading-tight">{Math.round((cr.odds.epic + cr.odds.legendary) * 100)}% epic+</span>
               </button>
               <button className="btn-red btn-sm" disabled={meta.coins < cr.cost || !!opening} onClick={() => open(cr.id)}><span className="coin">c</span> {cr.cost}</button>
             </div>
           ))}
         </div>
         {msg && <p className="text-red text-xs font-bold mt-3">{msg}</p>}
-        {found && (
-          <div className="sticker mt-5 p-4 flex items-center gap-4 card-slap" style={{ background: RARITY_BG[RELIC_MAP[found].rarity] }}>
-            <div className="text-4xl">{RELIC_MAP[found].icon}</div>
-            <div><div className="text-[10px] font-black uppercase tracking-[.14em]">{RELIC_MAP[found].rarity} relic</div><div className="font-display text-xl uppercase leading-none">{RELIC_MAP[found].name}</div><div className="text-xs font-semibold mt-1">{RELIC_MAP[found].desc}</div></div>
+        {found && (() => { const t = TRINKET_MAP[found.id]; return (
+          <div className="sticker mt-5 p-4 flex items-center gap-4 card-slap" style={{ background: TRINKET_COLOR[t.rarity] }}>
+            <div className="text-4xl">{t.icon}</div>
+            <div><div className="text-[10px] font-black uppercase tracking-[.14em]">{t.rarity} trinket{found.dup ? ` · duplicate, +${found.refund} coins back` : ' · new!'}</div><div className="font-display text-xl uppercase leading-none">{t.name}</div><div className="text-xs font-semibold mt-1">{t.desc}</div></div>
           </div>
-        )}
+        ); })()}
+        <div className="mt-5 text-[11px] font-bold text-muted space-y-0.5">
+          {CRATES.map((cr) => <div key={cr.id}>{cr.name}: {TRINKET_RARITIES.filter((r) => cr.odds[r] > 0).map((r) => `${Math.round(cr.odds[r] * 100)}% ${r}`).join(' · ')}</div>)}
+        </div>
       </section>
 
       <section className="panel p-5 sm:p-6">
-        <h2 className="font-display text-2xl uppercase leading-none">Your relics</h2>
-        <p className="text-sm text-muted font-semibold mt-2 mb-4">Tap to equip up to {RELIC_SLOTS}. Equipped relics are used up when your next career starts.</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {RELICS.map((r) => {
-            const n = counts[r.id] ?? 0;
-            const eq = meta.equipped.includes(r.id);
-            return (
-              <button key={r.id} disabled={n === 0} onClick={() => metaAct((m) => toggleEquip(m, r.id))} className={`sticker p-3 text-left relative transition ${n === 0 ? 'opacity-35 grayscale' : 'gcard-hover'} ${eq ? '!shadow-[5px_5px_0_#e0262f] -rotate-1' : ''}`} style={n ? { background: RARITY_BG[r.rarity] } : undefined}>
-                {eq && <span className="tag absolute -top-2 -right-2">Equipped</span>}
-                <div className="flex justify-between"><span className="text-2xl">{r.icon}</span><span className="stat-num text-sm">×{n}</span></div>
-                <div className="font-display text-sm uppercase leading-tight mt-1">{r.name}</div>
-                <div className="text-[10px] font-semibold leading-snug mt-1">{r.desc}</div>
-              </button>
-            );
-          })}
+        <div className="flex justify-between items-end gap-2">
+          <h2 className="font-display text-2xl uppercase leading-none">Your trinkets · {meta.trinkets.length}/{TRINKETS.length}</h2>
+          <span className="tag tag-sun">{meta.equipped.length}/{slots} slotted</span>
         </div>
+        <p className="text-sm text-muted font-semibold mt-2 mb-4">Tap a trinket to slot it for your next career. {slots < 3 ? 'Unlock more slots in the Legacy shop.' : ''}</p>
+        {TRINKET_RARITIES.map((rar) => (
+          <div key={rar} className="mb-4 last:mb-0">
+            <div className="eyebrow mb-2" style={{ color: 'var(--ink)' }}><span className="inline-block w-2.5 h-2.5 rounded-sm border border-ink mr-1.5" style={{ background: TRINKET_COLOR[rar] }} />{rar}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {TRINKETS.filter((t) => t.rarity === rar).map((t) => {
+                const own = meta.trinkets.includes(t.id);
+                const eq = meta.equipped.includes(t.id);
+                return (
+                  <button key={t.id} disabled={!own} onClick={() => metaAct((m) => toggleEquip(m, t.id))} className={`sticker p-3 text-left relative transition ${own ? 'gcard-hover' : 'opacity-35 grayscale'} ${eq ? '!shadow-[5px_5px_0_#e0262f] -rotate-1' : ''}`} style={own ? { background: TRINKET_COLOR[t.rarity] } : undefined}>
+                    {eq && <span className="tag absolute -top-2 -right-2">Slotted</span>}
+                    <div className="text-2xl">{own ? t.icon : '?'}</div>
+                    <div className="font-display text-sm uppercase leading-tight mt-1">{own ? t.name : '???'}</div>
+                    <div className="text-[10px] font-semibold leading-snug mt-1">{own ? t.desc : 'Not found yet'}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </section>
     </div>
   );
@@ -303,6 +315,7 @@ function HofTab() {
           {hof.map((h, i) => (
             <div key={h.id} className={`sticker flex items-center gap-3 px-3 py-2.5 ${i === 0 ? '!bg-sun' : ''}`}>
               <span className="stat-num text-lg w-6">{i + 1}</span>
+              {h.grade && <span className="font-display text-xl w-9 h-9 grid place-items-center rounded-lg border-2 border-ink bg-red text-white">{h.grade}</span>}
               <div className="flex-1 min-w-0"><div className="font-extrabold truncate">{h.name}</div><div className="text-xs text-muted font-semibold truncate">{h.position} · {h.country} · peak {h.peakOvr}</div></div>
               <span className="text-xs font-bold hidden sm:inline">{h.apps} apps · {h.goals} G · {h.trophies} trophies{h.ballons ? ` · ${h.ballons} Ballon` : ''}</span>
               <span className="tag">{h.legacyTier}</span>

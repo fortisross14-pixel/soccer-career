@@ -54,11 +54,18 @@ window, the season ending, or a pile of unopened packs.
 All randomness goes through a seeded RNG (`engines/util.ts`) whose state is stored in
 the save, so reloading doesn't re-roll outcomes and `npm run sim` is reproducible.
 
-## Balance
+## Balance: the progression curve
 
-A fresh profile is meant to be humble: with no upgrades, the median career peaks around 65 OVR and its
-best club is a lower top-flight side (rating ~70). Reaching a mid-table top-flight club is a good first run.
-Legacy upgrades and relics are what push later runs to elite clubs and awards.
+`npm run sim [n] --profile=fresh|run2|run6|run10|run15` auto-plays careers with the upgrades and trinkets a
+profile typically owns at that stage. Current medians (160 careers each):
+
+| Profile | Peak OVR | Best club | National team | Grades |
+|---|---|---|---|---|
+| fresh (run 1) | 61 | 66 (top of a 2nd tier) | 16% | 87% D |
+| run 2 (1 common trinket) | 64 | 68 | 21% | mostly D, some C |
+| run 6 (3 slots, 1 uncommon) | 78 | 83 (mid-table top league) | 91% | mostly B |
+| run 10 (rare + epic) | 87 | 90 (top club) | regular | 71% A |
+| run 15 (epic + legendaries) | 96 | 90 | regular | 100% S, ~5 Ballon d'Ors |
 
 ### Older v2 numbers (before the three-tier pyramid)
 
@@ -78,10 +85,13 @@ about 20% end as Legend or better.
   milestones (first pro contract, first goal, first continental match, international debut, promotion,
   first trophy, Ballon d'Or…) plus small repeat rewards for goals, assists, clean sheets, MOTMs, trophies
   and awards, and a payout at retirement based on legacy score (`engines/coins.ts`).
-- The main menu has a **Legacy shop** with permanent, levelled upgrades (better starting attributes,
+- The main menu has a **Legacy shop** with permanent, levelled upgrades (trinket slots, starting attributes,
   minimum prospect stars, POT, starter packs, injury resistance, bigger hand and more card plays, pack luck,
-  agent, reputation, longevity) and **Crates** that drop one-run **relics**. You can equip up to 3 relics,
-  and they're used up when the career starts (`data/legacy.ts`, `game/meta.ts`).
+  agent, reputation, longevity) and **Crates** (Kit Bag, Trophy Case, Legend Chest) that drop **trinkets**.
+- **Trinkets** are permanent collectibles in five rarities (common, uncommon, rare, epic, legendary), and
+  power scales with rarity. You start with 1 slot and can unlock up to 3. Slotted trinkets carry over
+  between careers, and duplicate pulls refund 40% of the crate cost (`data/legacy.ts`, `game/meta.ts`).
+- Every retired player gets an **S/A/B/C/D grade** from peak level and legacy.
 - Each month has a **Training ground ↔ Match day** slider: growth vs match rating, involvement, scout
   interest, injury load and recovery. You can play 2 cards per month (more with upgrades).
 - **Promotion & relegation** run every season across your country's pyramid (`engines/world.ts`). The top-5

@@ -314,6 +314,7 @@ export interface CareerMods {
   wageBonus: number;
   coinMult: number;
   noInjuryUntil: number; // season year
+  ratingBonus: number;
 }
 
 export interface Career {

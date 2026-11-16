@@ -168,7 +168,7 @@ export function playCard(c: Career, cardUid: string): { ok: boolean; msg: string
     }
     case 'potential': {
       const before = potentialOverall(p);
-      p.potential = clamp(p.potential + (def.potential ?? 0), 0.3, 1);
+      p.potential = clamp(p.potential + (def.potential ?? 0), 0.3, Math.max(1, p.potential));
       if (def.id === 'po-2') p.peakEnd += 1;
       parts.push(`POT ${before} → ${potentialOverall(p)}`);
       break;

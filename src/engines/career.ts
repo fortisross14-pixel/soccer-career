@@ -1,6 +1,7 @@
 import type { Career, CareerMods, PositionKey, SkillKey } from '../game/types';
 import { POSITION_MAP } from '../data/positions';
 import { milestone } from './coins';
+import { TRINKET_MAP, type TrinketFx } from '../data/legacy';
 import { SKILL_KEYS, SKILL_MAP } from '../data/skills';
 import { getCountry } from '../data/countries';
 import { CLUB_MAP } from '../data/clubs';
@@ -22,52 +23,52 @@ export interface CareerSetup {
 export const NO_SETUP: CareerSetup = { upgrades: {}, relics: [] };
 
 export function baseMods(): CareerMods {
-  return { injuryCut: 0, handBonus: 0, extraBoosts: 0, extraPlays: 0, luck: 0, youthGrowth: 0, repBonus: 0, offerBonus: 0, wageBonus: 0, coinMult: 1, noInjuryUntil: 0 };
+  return { injuryCut: 0, handBonus: 0, extraBoosts: 0, extraPlays: 0, luck: 0, youthGrowth: 0, repBonus: 0, offerBonus: 0, wageBonus: 0, coinMult: 1, noInjuryUntil: 0, ratingBonus: 0 };
 }
 
-const POT_STEP = 0.0125; // ≈ +1 POT
+const POT_STEP = 0.021; // ≈ +1 POT
 
 export function createCareer(name: string, country: string, position: PositionKey, setup: CareerSetup = NO_SETUP, seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0): Career {
   seedRng(seed);
   const up = (id: string) => setup.upgrades[id] ?? 0;
-  const has = (id: string) => setup.relics.includes(id);
+  const trinkets = setup.relics.map((id) => TRINKET_MAP[id]).filter(Boolean);
+  const sum = (f: (fx: TrinketFx) => number | undefined) => trinkets.reduce((acc, t) => acc + (f(t.fx) ?? 0), 0);
 
   const roll = rng();
   let stars = (roll < 0.15 ? 1 : roll < 0.5 ? 2 : roll < 0.82 ? 3 : roll < 0.96 ? 4 : 5) as 1 | 2 | 3 | 4 | 5;
   const minStars = up('scouting') ? 2 + up('scouting') : 1;
-  stars = Math.max(stars, minStars) as typeof stars;
-  if (has('hype')) stars = Math.min(5, stars + 1) as typeof stars;
-  if (has('chosen')) stars = Math.min(5, stars + 1) as typeof stars;
+  stars = Math.min(5, Math.max(stars, minStars) + sum((f) => f.stars)) as typeof stars;
   // first runs are humble: most prospects top out in the lower divisions or a modest top-flight side
-  const ranges: Record<number, [number, number]> = { 1: [0.32, 0.42], 2: [0.4, 0.52], 3: [0.5, 0.63], 4: [0.62, 0.76], 5: [0.75, 0.9] };
+  const ranges: Record<number, [number, number]> = { 1: [0.27, 0.37], 2: [0.34, 0.45], 3: [0.42, 0.54], 4: [0.52, 0.65], 5: [0.62, 0.76] };
   const [lo, hi] = ranges[stars];
-  const potBonus = [0, 1, 2, 4][up('gifted')] + (has('gene') ? 2 : 0) + (has('chosen') ? 1 : 0);
-  const potential = Math.min(1, lo + rng() * (hi - lo) + potBonus * POT_STEP);
+  const potBonus = [0, 1, 2, 4][up('gifted')] + sum((f) => f.pot);
+  const potential = Math.min(1.2, lo + rng() * (hi - lo) + potBonus * POT_STEP);
   const peakStart = 24 + randInt(-1, 2);
-  const peakEnd = peakStart + randInt(4, 7) + up('longevity');
+  const peakEnd = peakStart + randInt(4, 7) + up('longevity') + sum((f) => f.prime);
 
   const caps = allCaps({ potential, position });
   const keys = POSITION_MAP[position].keySkills;
-  const keyBonus = up('academy') * 2 + (has('socks') ? 2 : 0);
+  const keyBonus = up('academy') * 2 + sum((f) => f.key);
   const skills = {} as Record<SkillKey, number>;
   for (const k of SKILL_KEYS) {
     const gk = SKILL_MAP[k].category === 'Goalkeeping';
     const base = gk && position !== 'GK' ? randInt(10, 18) : clamp(Math.round(caps[k] * 0.82 + randInt(-3, 3)), 10, caps[k]);
     skills[k] = keys.includes(k) ? Math.min(caps[k], base + keyBonus) : base;
   }
-  if (has('armband')) skills.leadership = Math.min(99, skills.leadership + 3);
+  skills.leadership = Math.min(99, skills.leadership + sum((f) => f.leadership));
 
   const mods = baseMods();
-  mods.injuryCut = up('body') * 0.15;
+  mods.injuryCut = Math.min(0.7, up('body') * 0.15 + sum((f) => f.injury));
   mods.handBonus = up('binder') >= 1 ? 6 : 0;
-  mods.extraPlays = (up('binder') >= 1 ? 1 : 0) + (has('twin') ? 1 : 0);
+  mods.extraPlays = (up('binder') >= 1 ? 1 : 0) + sum((f) => f.plays);
   mods.extraBoosts = up('binder') >= 2 ? 1 : 0;
   mods.luck = up('luck');
-  mods.youthGrowth = has('notebook') ? 0.25 : 0;
+  mods.youthGrowth = sum((f) => f.growth);
   mods.offerBonus = up('agent');
   mods.wageBonus = up('agent') * 0.08;
-  mods.coinMult = has('midas') ? 1.5 : 1;
-  mods.noInjuryUntil = has('steel') ? START_YEAR + 2 : 0;
+  mods.coinMult = 1 + sum((f) => f.coinMult);
+  mods.noInjuryUntil = sum((f) => f.noInjurySeasons) ? START_YEAR + sum((f) => f.noInjurySeasons) : 0;
+  mods.ratingBonus = sum((f) => f.rating);
 
   const c: Career = {
     version: 2,
@@ -75,8 +76,8 @@ export function createCareer(name: string, country: string, position: PositionKe
     rng: 0,
     player: {
       name: name.trim() || 'New Talent', country, position, age: START_AGE, skills, potential, stars, peakStart, peakEnd,
-      traits: [], form: 6.6, fitness: 92, morale: 70, trust: 50 + (has('armband') ? 20 : 0),
-      reputation: 4 + stars * 3 + up('fame') * 10 + (has('local') ? 8 : 0), money: 15_000 + (has('piggy') ? 300_000 : 0),
+      traits: [], form: 6.6, fitness: 92, morale: 70, trust: 50 + sum((f) => f.trust),
+      reputation: 4 + stars * 3 + up('fame') * 10 + sum((f) => f.rep), money: 15_000 + sum((f) => f.money),
       contract: null, injury: null, boosts: [], staff: [], transferListed: false,
     },
     year: START_YEAR,
@@ -118,9 +119,8 @@ export function createCareer(name: string, country: string, position: PositionKe
   if (up('kit') >= 1) addPack(c, 'silver', 'Starter Kit');
   if (up('kit') >= 2) addPack(c, 'gold', 'Starter Kit');
   if (up('kit') >= 3) addPack(c, 'elite', 'Starter Kit');
-  if (has('ticket')) addPack(c, 'elite', 'Golden Ticket');
-  if (has('chosen')) addPack(c, 'elite', 'The Chosen One');
-  if (has('energy')) for (let i = 0; i < 3; i++) c.cards.push({ uid: uid('cd'), defId: 're-ice', isNew: true });
+  for (const t of trinkets) for (const tier of t.fx.packs ?? []) addPack(c, tier, t.name);
+  for (let i = 0; i < sum((f) => f.iceBaths); i++) c.cards.push({ uid: uid('cd'), defId: 're-ice', isNew: true });
   milestone(c, 'start');
   c.notices = [
     `You are a ${stars}-star prospect from ${country}. Three lower-league clubs want to sign you. Choose your first contract.`,

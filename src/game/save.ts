@@ -2,6 +2,7 @@ import type { Career, PositionKey } from './types';
 import { playerOverall } from '../engines/overall';
 import { CLUB_MAP } from '../data/clubs';
 import { POSITION_MAP } from '../data/positions';
+import { playerGrade } from '../engines/awards';
 
 // v2 saves. Old (v1) saves are intentionally not migrated.
 const SLOT_KEY = (n: number) => `xi2_save_${n}`;
@@ -44,7 +45,7 @@ export function firstFreeSlot(): number | null {
 
 export interface HofEntry {
   id: string; name: string; country: string; position: string; apps: number; goals: number; assists: number;
-  trophies: number; ballons: number; legacyScore: number; legacyTier: string; age: number; peakOvr: number;
+  trophies: number; ballons: number; legacyScore: number; legacyTier: string; age: number; peakOvr: number; grade?: string;
 }
 
 export function loadHof(): HofEntry[] {
@@ -58,7 +59,7 @@ export function addToHof(c: Career) {
   list.push({
     id: c.id, name: c.player.name, country: c.player.country, position: POSITION_MAP[c.player.position].name,
     apps: c.totals.apps, goals: c.totals.goals, assists: c.totals.assists, trophies, ballons,
-    legacyScore: c.legacy?.score ?? 0, legacyTier: c.legacy?.tier ?? 'Journeyman', age: c.player.age, peakOvr: c.peakOvr,
+    legacyScore: c.legacy?.score ?? 0, legacyTier: c.legacy?.tier ?? 'Journeyman', age: c.player.age, peakOvr: c.peakOvr, grade: playerGrade(c).letter,
   });
   list.sort((a, b) => b.legacyScore - a.legacyScore);
   safe(() => localStorage.setItem(HOF_KEY, JSON.stringify(list.slice(0, 50))), undefined);

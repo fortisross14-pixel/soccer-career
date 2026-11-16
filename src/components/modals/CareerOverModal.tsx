@@ -3,7 +3,7 @@ import { useGame } from '../../game/store';
 import { MILESTONES, MILESTONE_MAP } from '../../engines/coins';
 import { seasonLabel } from '../../engines/month';
 import { tierLabel } from '../../engines/world';
-import { ordinal } from '../../engines/awards';
+import { ordinal, playerGrade } from '../../engines/awards';
 import { Modal, Stat } from '../ui';
 import { fx } from '../fx';
 
@@ -16,6 +16,7 @@ export default function CareerOverModal({ onClose }: { onClose: () => void }) {
   }, [c?.legacy?.tier]);
   if (!c) return null;
   const t = c.totals;
+  const grade = playerGrade(c);
   const clubs = [...new Set(c.history.flatMap((h) => h.clubs.split(' → ')))];
   const best = [...c.history].sort((a, b) => b.goals + b.assists * 0.7 - (a.goals + a.assists * 0.7))[0];
   const trophies = [...c.honors.club, ...c.honors.national].reduce((s, h) => s + h.count, 0);
@@ -26,11 +27,15 @@ export default function CareerOverModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal wide>
-      <div className="p-6 bg-sun border-b-[3px] border-ink">
+      <div className="p-6 bg-sun border-b-[3px] border-ink relative">
+        <div className="absolute right-5 top-5 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-[3px] border-ink bg-red text-white grid place-items-center shadow-[5px_5px_0_#121212] rotate-3 card-slap" style={{ ['--rot' as string]: '4deg' }}>
+          <div className="text-center leading-none"><div className="font-display text-5xl sm:text-6xl">{grade.letter}</div><div className="text-[8px] font-black uppercase tracking-[.14em] mt-1">tier</div></div>
+        </div>
         <span className="tag">Full time · retired at {c.player.age}</span>
-        <h2 className="font-display text-4xl sm:text-5xl uppercase leading-[.9] mt-3">{c.player.name}</h2>
+        <h2 className="font-display text-4xl sm:text-5xl uppercase leading-[.9] mt-3 pr-24">{c.player.name}</h2>
         <div className="flex flex-wrap items-center gap-2 mt-3">
-          <span className="tag !text-sm">{c.legacy?.tier}</span>
+          <span className="tag !text-sm">{grade.title}</span>
+          <span className="tag tag-white !text-sm">{c.legacy?.tier}</span>
           <span className="font-bold text-sm">{c.legacy?.blurb}</span>
         </div>
       </div>

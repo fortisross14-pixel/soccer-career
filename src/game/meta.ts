@@ -1,5 +1,5 @@
-import type { CoinEvent, Rarity } from './types';
-import { CRATES, RELICS, RELIC_SLOTS, UPGRADE_MAP } from '../data/legacy';
+import type { CoinEvent } from './types';
+import { CRATES, DUPLICATE_REFUND, TRINKETS, TRINKET_RARITIES, UPGRADE_MAP, trinketSlots, type TrinketRarity } from '../data/legacy';
 import type { CareerSetup } from '../engines/career';
 
 // Profile-wide progression that survives between careers.
@@ -9,18 +9,24 @@ export interface Meta {
   coins: number;
   lifetime: number;
   upgrades: Record<string, number>;
-  relics: string[];      // inventory (duplicates allowed)
-  equipped: string[];    // relic ids queued for the next career
+  trinkets: string[];    // owned (permanent, unique)
+  equipped: string[];    // slotted for the next career
   milestones: Record<string, number>; // times achieved across all careers
   careers: number;
 }
 
-const EMPTY: Meta = { coins: 0, lifetime: 0, upgrades: {}, relics: [], equipped: [], milestones: {}, careers: 0 };
+const EMPTY: Meta = { coins: 0, lifetime: 0, upgrades: {}, trinkets: [], equipped: [], milestones: {}, careers: 0 };
 
 export function loadMeta(): Meta {
   try {
     const raw = localStorage.getItem(META_KEY);
-    return raw ? { ...EMPTY, ...(JSON.parse(raw) as Meta) } : { ...EMPTY };
+    if (!raw) return { ...EMPTY };
+    const parsed = JSON.parse(raw) as Partial<Meta> & { relics?: string[] };
+    // older profiles kept consumable "relics"; they become owned trinkets
+    const owned = new Set([...(parsed.trinkets ?? []), ...(parsed.relics ?? [])].filter((id) => TRINKETS.some((t) => t.id === id)));
+    const m: Meta = { ...EMPTY, ...parsed, trinkets: [...owned], equipped: (parsed.equipped ?? []).filter((id) => owned.has(id)) };
+    m.equipped = m.equipped.slice(0, trinketSlots(m.upgrades));
+    return m;
   } catch { return { ...EMPTY }; }
 }
 
@@ -51,31 +57,41 @@ export function buyUpgrade(m: Meta, id: string): Meta | string {
   return { ...m, coins: m.coins - cost, upgrades: { ...m.upgrades, [id]: (m.upgrades[id] ?? 0) + 1 } };
 }
 
-export function openCrate(m: Meta, crateId: string): { meta: Meta; relic: string } | string {
+export interface CrateResult { meta: Meta; trinket: string; duplicate: boolean; refund: number }
+
+export function openCrate(m: Meta, crateId: string, roll: () => number = Math.random): CrateResult | string {
   const crate = CRATES.find((c) => c.id === crateId);
   if (!crate) return 'Unknown crate.';
   if (m.coins < crate.cost) return 'Not enough legacy coins.';
-  let r = Math.random();
-  let rarity: Rarity = 'common';
-  for (const k of ['common', 'rare', 'epic', 'legendary'] as Rarity[]) { r -= crate.odds[k]; if (r <= 0) { rarity = k; break; } }
-  const pool = RELICS.filter((x) => x.rarity === rarity);
-  const relic = pool[Math.floor(Math.random() * pool.length)];
-  return { meta: { ...m, coins: m.coins - crate.cost, relics: [...m.relics, relic.id] }, relic: relic.id };
-}
-
-export function toggleEquip(m: Meta, relicId: string): Meta {
-  if (m.equipped.includes(relicId)) return { ...m, equipped: m.equipped.filter((x) => x !== relicId) };
-  if (m.equipped.length >= RELIC_SLOTS) return m;
-  if (!m.relics.includes(relicId)) return m;
-  return { ...m, equipped: [...m.equipped, relicId] };
-}
-
-/** setup for a new career; equipped relics are consumed */
-export function startRun(m: Meta): { meta: Meta; setup: CareerSetup } {
-  const relics = [...m.relics];
-  for (const id of m.equipped) { const i = relics.indexOf(id); if (i >= 0) relics.splice(i, 1); }
+  let r = roll();
+  let rarity: TrinketRarity = 'common';
+  for (const k of TRINKET_RARITIES) { r -= crate.odds[k]; if (r <= 0) { rarity = k; break; } }
+  if (crate.odds[rarity] === 0) rarity = TRINKET_RARITIES.find((k) => crate.odds[k] > 0)!;
+  const pool = TRINKETS.filter((x) => x.rarity === rarity);
+  // favour trinkets you don't own yet
+  const fresh = pool.filter((x) => !m.trinkets.includes(x.id));
+  const pickFrom = fresh.length && roll() < 0.7 ? fresh : pool;
+  const t = pickFrom[Math.floor(roll() * pickFrom.length)];
+  const duplicate = m.trinkets.includes(t.id);
+  const refund = duplicate ? Math.round(crate.cost * DUPLICATE_REFUND) : 0;
   return {
-    meta: { ...m, relics, equipped: [], careers: m.careers + 1 },
-    setup: { upgrades: { ...m.upgrades }, relics: [...m.equipped] },
+    meta: { ...m, coins: m.coins - crate.cost + refund, trinkets: duplicate ? m.trinkets : [...m.trinkets, t.id] },
+    trinket: t.id, duplicate, refund,
+  };
+}
+
+export function toggleEquip(m: Meta, id: string): Meta {
+  if (m.equipped.includes(id)) return { ...m, equipped: m.equipped.filter((x) => x !== id) };
+  if (!m.trinkets.includes(id)) return m;
+  const slots = trinketSlots(m.upgrades);
+  if (m.equipped.length >= slots) return slots === 1 ? { ...m, equipped: [id] } : m;
+  return { ...m, equipped: [...m.equipped, id] };
+}
+
+/** setup for a new career; trinkets stay owned and equipped */
+export function startRun(m: Meta): { meta: Meta; setup: CareerSetup } {
+  return {
+    meta: { ...m, careers: m.careers + 1 },
+    setup: { upgrades: { ...m.upgrades }, relics: m.equipped.slice(0, trinketSlots(m.upgrades)) },
   };
 }

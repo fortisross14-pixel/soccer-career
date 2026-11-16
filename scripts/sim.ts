@@ -5,6 +5,7 @@ import { playMonth, finalizeRetirement } from '../src/engines/month';
 import { acceptOffer } from '../src/engines/market';
 import { openPack, playCard, cardBlocker, sellCard } from '../src/engines/cards';
 import { applyDecision } from '../src/engines/decisions';
+import { playerGrade } from '../src/engines/awards';
 import { playerOverall, potentialOverall } from '../src/engines/overall';
 import { roleRank } from '../src/engines/match';
 import { seedRng } from '../src/engines/util';
@@ -15,8 +16,16 @@ import { COUNTRIES } from '../src/data/countries';
 import type { Career } from '../src/game/types';
 
 const N = Number(process.argv[2] ?? 200);
-const MAXED = process.argv.includes('--maxed');
-const SETUP: CareerSetup = MAXED ? { upgrades: { academy: 3, scouting: 2, gifted: 3, kit: 3, body: 2, binder: 2, luck: 2, agent: 1, fame: 1, longevity: 1 }, relics: ['chosen', 'gene', 'twin'] } : NO_SETUP;
+// progression stages: what a profile typically owns after N careers
+const PROFILES: Record<string, CareerSetup> = {
+  fresh: NO_SETUP,
+  run2: { upgrades: {}, relics: ['socks'] },
+  run6: { upgrades: { slots: 2, academy: 1, gifted: 2, scouting: 1, kit: 1 }, relics: ['diploma', 'socks', 'shinpads'] },
+  run10: { upgrades: { slots: 2, academy: 2, gifted: 2, scouting: 1, kit: 2, body: 1, binder: 1, agent: 1 }, relics: ['gene', 'talent', 'diploma'] },
+  run15: { upgrades: { slots: 2, academy: 3, scouting: 2, gifted: 3, kit: 3, body: 2, binder: 2, luck: 2, agent: 1, fame: 1, longevity: 1 }, relics: ['feet', 'chosen', 'gene'] },
+};
+const profArg = process.argv.find((a) => a.startsWith('--profile='))?.split('=')[1] ?? (process.argv.includes('--maxed') ? 'run15' : 'fresh');
+const SETUP: CareerSetup = PROFILES[profArg] ?? NO_SETUP;
 
 function manageCards(c: Career) {
   for (const pk of [...c.packs]) openPack(c, pk.uid);
@@ -68,6 +77,7 @@ const dist = (arr: number[]) => ({ p10: pct(arr, 0.1), p25: pct(arr, 0.25), med:
 
 const t0 = Date.now();
 const careers = Array.from({ length: N }, (_, i) => run(i));
+console.log(`[${profArg}]`);
 console.log(`${N} careers in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log('peak OVR', dist(careers.map((c) => c.peakOvr)));
 console.log('POT at end', dist(careers.map((c) => potentialOverall(c.player))));
@@ -86,6 +96,9 @@ console.log("Ballon d'Or", count("Ballon"), 'Golden Boot', count('Golden Boot'),
 const tiers: Record<string, number> = {};
 careers.forEach((c) => { const t = c.legacy?.tier ?? 'none'; tiers[t] = (tiers[t] ?? 0) + 1; });
 console.log('legacy', tiers);
+const grades: Record<string, number> = {};
+careers.forEach((c) => { const g = playerGrade(c).letter; grades[g] = (grades[g] ?? 0) + 1; });
+console.log('grades', JSON.stringify(grades));
 console.log('legacy coins per career', dist(careers.map((c) => c.coinsEarned)), 'milestones', dist(careers.map((c) => c.milestones.length)));
 console.log('reached top flight', Math.round(careers.filter((c) => c.bestDiv === 1).length / N * 100) + '%', 'best tier', dist(careers.map((c) => c.bestDiv)), 'golden boots any', careers.filter((c) => c.milestones.includes('boot1')).length);
 const top5 = careers.filter((c) => ['England','Spain','Italy','Germany','France'].includes(c.player.country));
