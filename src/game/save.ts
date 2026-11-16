@@ -16,8 +16,20 @@ export interface SaveMeta {
 
 function safe<T>(fn: () => T, fallback: T): T { try { return fn(); } catch { return fallback; } }
 
-export function saveToSlot(slot: number, c: Career) {
-  safe(() => localStorage.setItem(SLOT_KEY(slot), JSON.stringify(c)), undefined);
+/** returns false if the browser refused to store the save (e.g. storage full or disabled) */
+export function saveToSlot(slot: number, c: Career): boolean {
+  try { localStorage.setItem(SLOT_KEY(slot), JSON.stringify(c)); return true; }
+  catch (e) { console.error('Could not save career', e); return false; }
+}
+
+/** a slot holds data, even if it cannot be read */
+export function slotOccupied(slot: number): boolean {
+  return safe(() => localStorage.getItem(SLOT_KEY(slot)) !== null, false);
+}
+
+/** saves from the original version of the game (before the rebuild) */
+export function legacySaveCount(): number {
+  return safe(() => Object.keys(localStorage).filter((k) => /^sc_save_\d$/.test(k)).length, 0);
 }
 
 export function loadSlot(slot: number): Career | null {
@@ -33,6 +45,11 @@ export function loadSlot(slot: number): Career | null {
     c.academy ??= null;
     c.firstEver ??= [];
     c.bestDiv ??= 9;
+    c.world ??= { div: {} };
+    c.milestones ??= [];
+    c.pendingCoins ??= [];
+    c.mods ??= { injuryCut: 0, handBonus: 0, extraBoosts: 0, extraPlays: 0, luck: 0, youthGrowth: 0, repBonus: 0, offerBonus: 0, wageBonus: 0, coinMult: 1, noInjuryUntil: 0, ratingBonus: 0, maxRarity: 'legendary' };
+    c.plan ??= { balance: 50 };
     return c;
   }, null);
 }
@@ -43,12 +60,12 @@ export function slotMeta(slot: number): SaveMeta | null {
   const c = loadSlot(slot);
   if (!c) return null;
   const p = c.player;
-  return { slot, name: p.name, age: p.age, position: p.position, country: p.country, clubName: p.contract ? CLUB_MAP[p.contract.clubId]?.name ?? '—' : 'Free agent', overall: displayOverall(p), retired: c.retired, year: c.year };
+  return { slot, name: p.name, age: p.age, position: p.position, country: p.country, clubName: c.academy ? `${CLUB_MAP[c.academy.clubId]?.name ?? ''} academy` : p.contract ? CLUB_MAP[p.contract.clubId]?.name ?? '—' : 'Free agent', overall: displayOverall(p), retired: c.retired, year: c.year };
 }
 
 export function allSlots(): (SaveMeta | null)[] { return Array.from({ length: NUM_SLOTS }, (_, i) => slotMeta(i + 1)); }
 export function firstFreeSlot(): number | null {
-  for (let i = 1; i <= NUM_SLOTS; i++) if (!slotMeta(i)) return i;
+  for (let i = 1; i <= NUM_SLOTS; i++) if (!slotOccupied(i)) return i;
   return null;
 }
 

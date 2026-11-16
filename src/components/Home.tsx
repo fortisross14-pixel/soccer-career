@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { PositionKey } from '../game/types';
 import { useGame } from '../game/store';
-import { allSlots, deleteSlot, loadHof } from '../game/save';
+import { allSlots, deleteSlot, legacySaveCount, loadHof, slotOccupied } from '../game/save';
 import { buyUpgrade, openCrate, toggleEquip, upgradeCost } from '../game/meta';
 import { COUNTRIES } from '../data/countries';
 import { POSITIONS } from '../data/positions';
@@ -150,9 +150,15 @@ function PlayTab({ goShop, goCrates }: { goShop: () => void; goCrates: () => voi
                 </>
               )}
             </div>
+          ) : slotOccupied(i + 1) ? (
+            <div key={i} className="rounded-lg border-2 border-red p-3 text-xs font-bold flex items-center gap-2">
+              <span className="flex-1">Slot {i + 1}: this save could not be read.</span>
+              {confirmDel === i ? <button className="btn-red btn-sm" onClick={() => { deleteSlot(i + 1); setSlots(allSlots()); setConfirmDel(null); }}>Delete it</button> : <button className="btn-white btn-sm" onClick={() => setConfirmDel(i)}>Clear slot</button>}
+            </div>
           ) : (
             <div key={i} className="rounded-lg border-2 border-dashed border-ink/40 p-3 text-xs text-muted font-bold">Empty slot {i + 1}</div>
           ))}
+          {legacySaveCount() > 0 && <p className="text-[11px] text-muted font-semibold">Saves from the original version of the game ({legacySaveCount()}) can't be continued in this version. Start a new career.</p>}
         </div>
       </section>
     </div>

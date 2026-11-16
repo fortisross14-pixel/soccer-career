@@ -57,7 +57,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
     ref.current = c;
     setCareer(c);
-    if (slotRef.current) saveToSlot(slotRef.current, c);
+    if (slotRef.current && !saveToSlot(slotRef.current, c)) fx({ type: 'stamp', text: 'Save failed!', tone: 'red' });
   };
 
   const act = useCallback(<T,>(fn: (c: Career) => T): T => {
