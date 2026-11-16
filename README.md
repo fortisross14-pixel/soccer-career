@@ -66,9 +66,25 @@ the save, so reloading doesn't re-roll outcomes and `npm run sim` is reproducibl
 About half of careers reach the national team, about 1 Ballon d'Or per 7 careers, and
 about 20% end as Legend or better.
 
+## Roguelike meta-progression
+
+- **Legacy coins** are a profile currency, separate from career money. They come from once-per-career
+  milestones (first pro contract, first goal, first continental match, international debut, promotion,
+  first trophy, Ballon d'Or…) plus small repeat rewards for goals, assists, clean sheets, MOTMs, trophies
+  and awards, and a payout at retirement based on legacy score (`engines/coins.ts`).
+- The main menu has a **Legacy shop** with permanent, levelled upgrades (better starting attributes,
+  minimum prospect stars, POT, starter packs, injury resistance, bigger hand and more card plays, pack luck,
+  agent, reputation, longevity) and **Crates** that drop one-run **relics**. You can equip up to 3 relics,
+  and they're used up when the career starts (`data/legacy.ts`, `game/meta.ts`).
+- Each month has a **Training ground ↔ Match day** slider: growth vs match rating, involvement, scout
+  interest, injury load and recovery. You can play 2 cards per month (more with upgrades).
+- **Promotion & relegation** run every season for your country (`engines/world.ts`).
+- Visual style: **Terrace** (matchday stickers, scarves, pitch stripes), with ticker-tape, sticker-slap
+  goal celebrations, pack tearing and coin toasts (`components/FxLayer.tsx`).
+
 ## Known gaps / next steps
 
-- No promotion or relegation: club divisions are static data.
+- Competition leaderboards (top scorers, Ballon d'Or race, best by year, most titles) are not built yet.
 - Teammates and opponents are generated names, not persistent squads.
 - Card catalogue and decision pool are a first pass and need more content.
 

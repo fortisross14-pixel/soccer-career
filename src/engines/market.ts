@@ -5,6 +5,8 @@ import { buildSeason } from './calendar';
 import { currentRole, roleRank, squadRole, ROLE_LABEL } from './match';
 import { playerOverall, potentialOverall } from './overall';
 import { STAFF_PERK } from './perks';
+import { divOf } from './world';
+import { milestone } from './coins';
 import { chance, clamp, pick, randInt, rng, shuffle, uid } from './util';
 
 const TIER_WAGE: Record<ClubDef['tier'], number> = { Elite: 4_200_000, Strong: 2_200_000, Mid: 1_000_000, Small: 380_000, Youth: 60_000 };
@@ -35,7 +37,7 @@ function makeOffer(c: Career, club: ClubDef, kind: Offer['kind'], note?: string)
   const ovr = playerOverall(c.player);
   let role = squadRole(ovr, club.rating);
   if (kind === 'loan' && roleRank(role) < 3) role = 'starter';
-  const wage = Math.round(wageFor(club, role, ovr, c.player.age) * (1 + STAFF_PERK(c.player, 'wage')));
+  const wage = Math.round(wageFor(club, role, ovr, c.player.age) * (1 + STAFF_PERK(c.player, 'wage') + c.mods.wageBonus));
   return { uid: uid('of'), kind, clubId: club.id, wage, years: kind === 'loan' ? 1 : yearsFor(c.player.age), role, pushes: 0, final: false, note };
 }
 
@@ -52,7 +54,7 @@ export function windowOffers(c: Career, winter: boolean): Offer[] {
     const elites = shuffle(CLUBS.filter((cl) => cl.tier === 'Elite' && cl.id !== current)).slice(0, 2);
     interested = [...elites, ...interested];
   }
-  let count = Math.round(1 + p.reputation / 30 + (p.form - 6.6) * 1.5 + STAFF_PERK(p, 'offers'));
+  let count = Math.round(1 + p.reputation / 30 + (p.form - 6.6) * 1.5 + STAFF_PERK(p, 'offers') + c.mods.offerBonus + (c.plan.balance >= 65 ? 1 : 0));
   if (p.transferListed) count += 2;
   if (winter) count = Math.round(count * 0.5);
   count = clamp(count, winter ? 0 : 1, 6);
@@ -104,7 +106,7 @@ export function firstOffers(c: Career): Offer[] {
   const closest = (target: number, exclude: string[]) => [...home].filter((cl) => !exclude.includes(cl.id)).sort((a, b) => Math.abs(a.rating - target) - Math.abs(b.rating - target))[0];
   const a = closest(ovr + 4, []);
   const b = closest(ovr + 11, [a.id]);
-  const giants = home.filter((cl) => cl.division === 1).slice(-3);
+  const giants = home.filter((cl) => divOf(c, cl.id) === 1).slice(-3);
   const cc = pick(giants.filter((g) => g.id !== a.id && g.id !== b.id)) ?? home[home.length - 1];
   return [
     { ...makeOffer(c, a, 'first', 'Play now'), years: 2 },
@@ -178,6 +180,9 @@ export function acceptOffer(c: Career, offerUid: string): string {
   p.trust = 52 + (roleRank(o.role) - 2) * 4;
   p.transferListed = false;
   c.offers = [];
+  milestone(c, 'contract');
+  if (club.country !== p.country) milestone(c, 'abroad');
+  if (club.tier === 'Elite') milestone(c, 'elite');
   const kindText = o.kind === 'loan' ? 'Joined on loan' : o.kind === 'first' ? 'Signed your first professional contract with' : 'Transferred to';
   c.log.unshift({ year: c.year, month: c.month, kind: 'transfer', text: `${kindText} ${club.name} (${getCountry(club.country).leagueName}) — ${ROLE_LABEL[o.role]}, ${o.years} yr.` });
 

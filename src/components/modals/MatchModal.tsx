@@ -26,14 +26,14 @@ export default function MatchModal({ id }: { id: string }) {
 
   return (
     <Modal onClose={() => openMatch(null)} wide>
-      <div className="p-5 border-b border-line">
+      <div className="p-5 border-b border-ink">
         <div className="flex justify-between text-[10px] uppercase tracking-[.16em] text-muted font-bold">
           <span>{fx.compName} · {fx.stage}</span><span>{fmtDay(fx.day, year)}</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mt-4">
-          <div className={`font-display text-xl sm:text-3xl font-bold text-right leading-tight ${home === fx.usId ? 'text-cream' : 'text-muted'}`}>{teamName(home)}</div>
-          <div className={`stat-num text-4xl sm:text-5xl px-3 ${won ? 'text-mint' : lost ? 'text-danger' : ''}`}>{hg}–{ag}</div>
-          <div className={`font-display text-xl sm:text-3xl font-bold leading-tight ${away === fx.usId ? 'text-cream' : 'text-muted'}`}>{teamName(away)}</div>
+          <div className={`font-display text-xl sm:text-3xl font-bold text-right leading-tight ${home === fx.usId ? 'text-ink' : 'text-muted'}`}>{teamName(home)}</div>
+          <div className={`stat-num text-4xl sm:text-5xl px-3 ${won ? 'text-[#178a4c]' : lost ? 'text-red' : ''}`}>{hg}–{ag}</div>
+          <div className={`font-display text-xl sm:text-3xl font-bold leading-tight ${away === fx.usId ? 'text-ink' : 'text-muted'}`}>{teamName(away)}</div>
         </div>
         {fx.penalties && <div className="text-center text-xs text-muted mt-1">{fx.penalties}</div>}
       </div>
@@ -45,7 +45,7 @@ export default function MatchModal({ id }: { id: string }) {
             <>
               <div className="flex items-center gap-3 mb-4">
                 <div className="text-3xl"><RatingBadge value={r.rating} /></div>
-                <div className="text-sm">{r.note} · <span className="stat-num">{r.minutes}'</span>{r.motm && <span className="ml-2 pill border-[color:var(--legendary)] text-[color:var(--legendary)]">⭐ Man of the Match</span>}</div>
+                <div className="text-sm">{r.note} · <span className="stat-num">{r.minutes}'</span>{r.motm && <span className="ml-2 pill !bg-sun">⭐ Man of the Match</span>}</div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <Stat label="Goals" value={r.goals} />
@@ -55,7 +55,7 @@ export default function MatchModal({ id }: { id: string }) {
               </div>
             </>
           ) : (
-            <div className="rounded-lg border border-line p-4 text-sm text-muted">{r.note}. {r.involvement === 'dropped' ? 'Improve your form, fitness and manager trust to get picked.' : r.involvement === 'bench' ? 'You warmed up but never came on.' : ''}</div>
+            <div className="rounded-lg border border-ink p-4 text-sm text-muted">{r.note}. {r.involvement === 'dropped' ? 'Improve your form, fitness and manager trust to get picked.' : r.involvement === 'bench' ? 'You warmed up but never came on.' : ''}</div>
           )}
         </div>
         <div>
@@ -63,7 +63,7 @@ export default function MatchModal({ id }: { id: string }) {
           {r.events.length === 0 ? <p className="text-sm text-muted">A quiet game.</p> : (
             <div className="space-y-1.5">
               {r.events.map((e, i) => (
-                <div key={i} className={`flex items-center gap-3 text-sm rounded px-2 py-1 ${e.mine ? 'bg-lime/10' : ''} ${e.side === 'them' ? 'text-muted' : ''}`}>
+                <div key={i} className={`flex items-center gap-3 text-sm rounded px-2 py-1 ${e.mine ? 'bg-sun' : ''} ${e.side === 'them' ? 'text-muted' : ''}`}>
                   <span className="stat-num text-xs w-8 text-right">{e.minute}'</span>
                   <span className="w-5 text-center">{ICON[e.type]}</span>
                   <span className="flex-1">{e.side === 'them' && e.type === 'goal' ? `${teamName(fx.oppId)}: ${e.text}` : e.text}</span>
@@ -73,7 +73,7 @@ export default function MatchModal({ id }: { id: string }) {
           )}
         </div>
       </div>
-      <div className="px-5 pb-5"><button className="btn-ghost w-full" onClick={() => openMatch(null)}>Close</button></div>
+      <div className="px-5 pb-5"><button className="btn-white btn-sm w-full" onClick={() => openMatch(null)}>Close</button></div>
     </Modal>
   );
 }

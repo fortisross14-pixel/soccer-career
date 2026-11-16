@@ -187,7 +187,6 @@ export interface SeasonState {
 // ---------------- Player & Career ----------------
 
 export type SquadRole = 'star' | 'starter' | 'rotation' | 'fringe' | 'reserve';
-export type Intensity = 'light' | 'normal' | 'intense';
 
 export interface Contract {
   clubId: string;
@@ -265,6 +264,7 @@ export interface MonthReport {
   ovrBefore: number;
   ovrAfter: number;
   packs: PackInstance[];
+  coins: CoinEvent[];
   news: string[];
   income: number;
   costs: number;
@@ -291,6 +291,23 @@ export interface Honor { label: string; count: number }
 
 export interface LogEntry { year: number; month: number; text: string; kind: 'transfer' | 'trophy' | 'award' | 'national' | 'injury' | 'milestone' | 'card' | 'info' }
 
+export interface CoinEvent { label: string; amount: number; milestone?: string }
+
+/** run modifiers granted by legacy upgrades and relics */
+export interface CareerMods {
+  injuryCut: number;
+  handBonus: number;
+  extraBoosts: number;
+  extraPlays: number;
+  luck: number;
+  youthGrowth: number;
+  repBonus: number;
+  offerBonus: number;
+  wageBonus: number;
+  coinMult: number;
+  noInjuryUntil: number; // season year
+}
+
 export interface Career {
   version: 2;
   id: string;
@@ -303,7 +320,14 @@ export interface Career {
   packs: PackInstance[];
   purchases: number;            // packs bought this season
   focus: string;                // training focus id
-  intensity: Intensity;
+  plan: { balance: number };    // 0 = all training ground, 100 = all match day
+  cardsThisMonth: number;
+  mods: CareerMods;
+  relics: string[];
+  milestones: string[];
+  pendingCoins: CoinEvent[];
+  coinsEarned: number;
+  world: { div: Record<string, 1 | 2> };
   offers: Offer[];
   decisions: Decision[];
   notices: string[];            // what's happening this month

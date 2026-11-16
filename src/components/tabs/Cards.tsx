@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useGame } from '../../game/store';
 import type { CardDef, CardKind, PackTier } from '../../game/types';
-import { CARD_MAP, MAX_BOOSTS, MAX_HAND, MAX_STAFF, MAX_TRAITS, PACKS, RARITY_ORDER } from '../../data/cards';
+import { CARD_MAP, MAX_STAFF, MAX_TRAITS, PACKS, RARITY_ORDER } from '../../data/cards';
 import { TRAIT_MAP } from '../../data/traits';
-import { buyPack, cardBlocker, openPack, packPrice, releaseStaff, sellCard, playCard, SELL_VALUE } from '../../engines/cards';
+import { buyPack, cardBlocker, openPack, packPrice, releaseStaff, sellCard, playCard, SELL_VALUE, handLimit, boostLimit, playsPerMonth } from '../../engines/cards';
+import { burstFrom } from '../fx';
 import { fmtMoney } from '../../engines/util';
 import { EmptyState, GameCard, Modal, SectionTitle } from '../ui';
 
@@ -17,6 +18,7 @@ export default function Cards() {
   const [filter, setFilter] = useState<CardKind | 'all'>('all');
   const [selected, setSelected] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [tearing, setTearing] = useState<string | null>(null);
   if (!career) return null;
   const c = career;
   const p = c.player;
@@ -28,6 +30,12 @@ export default function Cards() {
   const selDef = sel ? CARD_MAP[sel.defId] : null;
 
   const open = (uid: string) => {
+    if (tearing) return;
+    if (c.cards.length + PACKS[c.packs.find((x) => x.uid === uid)!.tier].size > handLimit(c)) { setMsg(`Your hand is full (${handLimit(c)}). Play or sell some cards first.`); return; }
+    setTearing(uid);
+    setTimeout(() => { setTearing(null); reallyOpen(uid); }, 750);
+  };
+  const reallyOpen = (uid: string) => {
     const res = act((x) => openPack(x, uid));
     if (res.error) setMsg(res.error);
     else { setMsg(null); setReveal(res.cards); }
@@ -35,14 +43,14 @@ export default function Cards() {
 
   return (
     <div className="space-y-5">
-      {msg && <div className="text-sm rounded-md bg-orange/10 border border-orange/40 px-3 py-2">{msg}</div>}
+      {msg && <div className="text-sm rounded-md bg-[#fff1d6] border border-ink px-3 py-2">{msg}</div>}
 
       <section className="panel p-5">
-        <SectionTitle kicker="Unopened" title={`Packs (${c.packs.length})`} right={c.packs.length > 1 ? <button className="btn-ghost text-xs" onClick={() => open(c.packs[0].uid)}>Open next</button> : undefined} />
+        <SectionTitle kicker="Unopened" title={`Packs (${c.packs.length})`} right={c.packs.length > 1 ? <button className="btn-white btn-sm text-xs" onClick={() => open(c.packs[0].uid)}>Open next</button> : undefined} />
         {c.packs.length === 0 ? <EmptyState>Earn packs every month, for Man of the Match displays, big months, awards and trophies, or buy them below.</EmptyState> : (
           <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-3">
             {c.packs.map((pk) => (
-              <button key={pk.uid} onClick={() => open(pk.uid)} className={`pack pack-${pk.tier} text-left`}>
+              <button key={pk.uid} onClick={() => open(pk.uid)} className={`pack pack-${pk.tier} text-left ${tearing === pk.uid ? 'pack-shake' : ''}`}>
                 <div className="text-[10px] uppercase tracking-[.14em] font-black opacity-80">{PACKS[pk.tier].size} cards</div>
                 <div>
                   <div className="font-display text-xl font-extrabold leading-none">{PACKS[pk.tier].name.split(' ')[0].toUpperCase()}</div>
@@ -55,7 +63,7 @@ export default function Cards() {
       </section>
 
       <section className="panel p-5">
-        <SectionTitle kicker={`${c.cards.length} / ${MAX_HAND}`} title="Your hand" />
+        <SectionTitle kicker={`${c.cards.length} / ${handLimit(c)} · ${Math.max(0, playsPerMonth(c) - c.cardsThisMonth)} plays left this month`} title="Your hand" />
         <div className="flex flex-wrap gap-1.5 mb-4">
           {FILTERS.map((f) => <button key={f.id} className={`chip ${filter === f.id ? 'chip-on' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>)}
         </div>
@@ -70,24 +78,24 @@ export default function Cards() {
 
       <div className="grid lg:grid-cols-3 gap-5">
         <section className="panel p-5">
-          <SectionTitle kicker={`${p.boosts.length} / ${MAX_BOOSTS}`} title="Active boosts" />
+          <SectionTitle kicker={`${p.boosts.length} / ${boostLimit(c)}`} title="Active boosts" />
           {p.boosts.length === 0 ? <EmptyState>Boost cards add temporary attributes for the next few matches you play.</EmptyState> : p.boosts.map((b) => (
-            <div key={b.uid} className="flex justify-between text-sm py-1.5 border-b border-line/50 last:border-0"><span>⚡ {b.name}</span><span className="text-muted">{b.matchesLeft} match{b.matchesLeft > 1 ? 'es' : ''} left</span></div>
+            <div key={b.uid} className="flex justify-between text-sm py-1.5 border-b border-ink/15 last:border-0"><span>⚡ {b.name}</span><span className="text-muted">{b.matchesLeft} match{b.matchesLeft > 1 ? 'es' : ''} left</span></div>
           ))}
         </section>
         <section className="panel p-5">
           <SectionTitle kicker={`${p.staff.length} / ${MAX_STAFF}`} title="Personal staff" />
           {p.staff.length === 0 ? <EmptyState>Staff cards give lasting perks for a monthly fee.</EmptyState> : p.staff.map((id) => (
-            <div key={id} className="flex items-center justify-between text-sm py-1.5 border-b border-line/50 last:border-0">
+            <div key={id} className="flex items-center justify-between text-sm py-1.5 border-b border-ink/15 last:border-0">
               <span>☻ {CARD_MAP[id].name}<span className="block text-[11px] text-muted">{CARD_MAP[id].desc} · {fmtMoney(CARD_MAP[id].monthlyCost ?? 0)}/mo</span></span>
-              <button className="btn-ghost text-[11px]" onClick={() => act((x) => releaseStaff(x, id))}>Release</button>
+              <button className="btn-white btn-sm text-[11px]" onClick={() => act((x) => releaseStaff(x, id))}>Release</button>
             </div>
           ))}
         </section>
         <section className="panel p-5">
           <SectionTitle kicker={`${p.traits.length} / ${MAX_TRAITS}`} title="Traits" />
           {p.traits.length === 0 ? <EmptyState>Trait cards are rare, permanent playstyles.</EmptyState> : p.traits.map((t) => (
-            <div key={t} className="text-sm py-1.5 border-b border-line/50 last:border-0">◆ {TRAIT_MAP[t]?.name}<span className="block text-[11px] text-muted">{TRAIT_MAP[t]?.desc}</span></div>
+            <div key={t} className="text-sm py-1.5 border-b border-ink/15 last:border-0">◆ {TRAIT_MAP[t]?.name}<span className="block text-[11px] text-muted">{TRAIT_MAP[t]?.desc}</span></div>
           ))}
         </section>
       </div>
@@ -99,20 +107,20 @@ export default function Cards() {
           {(Object.keys(PACKS) as PackTier[]).map((t) => {
             const price = packPrice(c, t);
             return (
-              <div key={t} className="rounded-xl border border-line p-3 flex flex-col gap-2">
+              <div key={t} className="rounded-xl border border-ink p-3 flex flex-col gap-2">
                 <div className={`pack pack-${t} !aspect-[4/3]`}>
                   <div className="text-[10px] uppercase tracking-[.14em] font-black opacity-80">{PACKS[t].size} cards</div>
                   <div className="font-display text-xl font-extrabold">{PACKS[t].name.toUpperCase()}</div>
                 </div>
                 <div className="text-[11px] text-muted">Guaranteed {PACKS[t].guarantee}+ · {Math.round(PACKS[t].odds.legendary * 100)}% legendary</div>
-                <button className="btn-primary text-xs" disabled={p.money < price} onClick={() => { const e = act((x) => buyPack(x, t)); setMsg(e); }}>Buy {fmtMoney(price)}</button>
+                <button className="btn-red text-xs" disabled={p.money < price} onClick={() => { const e = act((x) => buyPack(x, t)); setMsg(e); }}>Buy {fmtMoney(price)}</button>
               </div>
             );
           })}
         </div>
       </section>
 
-      {sel && selDef && <CardModal def={selDef} onClose={() => setSelected(null)} onUse={() => { const r = act((x) => playCard(x, sel.uid)); setMsg(r.msg); if (r.ok) setSelected(null); }} onSell={() => { const v = act((x) => sellCard(x, sel.uid)); setMsg(`Sold for ${fmtMoney(v)}.`); setSelected(null); }} blocker={cardBlocker(c, selDef)} />}
+      {sel && selDef && <CardModal def={selDef} onClose={() => setSelected(null)} onUse={() => { const el = document.activeElement; const r = act((x) => playCard(x, sel.uid)); setMsg(r.msg); if (r.ok) { burstFrom(el, 30); setSelected(null); } }} onSell={() => { const v = act((x) => sellCard(x, sel.uid)); setMsg(`Sold for ${fmtMoney(v)}.`); setSelected(null); }} blocker={cardBlocker(c, selDef)} />}
     </div>
   );
 }
@@ -124,14 +132,14 @@ function CardModal({ def, onClose, onUse, onSell, blocker }: { def: CardDef; onC
         <div className="h-[270px]"><GameCard def={def} /></div>
         <div>
           <div className="eyebrow mb-2">{def.kind}</div>
-          <h3 className="font-display text-3xl font-bold">{def.name}</h3>
+          <h3 className="font-display text-3xl uppercase">{def.name}</h3>
           <p className="text-sm text-muted mt-2">{def.desc}</p>
           {def.kind === 'skill' && <p className="text-[11px] text-muted mt-3">Skill cards can't push an attribute past its ceiling. After 30 they are 25% weaker, and once you pass your prime they're 50% weaker.</p>}
           {def.kind === 'staff' && <p className="text-[11px] text-muted mt-3">Costs {fmtMoney(def.monthlyCost ?? 0)} every month while employed.</p>}
-          {blocker && <p className="text-sm text-orange mt-3">{blocker}</p>}
+          {blocker && <p className="text-sm text-[#c65d00] mt-3">{blocker}</p>}
           <div className="flex gap-2 mt-5">
-            <button className="btn-primary flex-1" disabled={!!blocker} onClick={onUse}>{def.kind === 'staff' ? 'Hire' : 'Play card'}</button>
-            <button className="btn-ghost" onClick={onSell}>Sell {fmtMoney(SELL_VALUE[def.rarity])}</button>
+            <button className="btn-red flex-1" disabled={!!blocker} onClick={onUse}>{def.kind === 'staff' ? 'Hire' : 'Play card'}</button>
+            <button className="btn-white btn-sm" onClick={onSell}>Sell {fmtMoney(SELL_VALUE[def.rarity])}</button>
           </div>
         </div>
       </div>

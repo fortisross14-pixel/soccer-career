@@ -2,7 +2,7 @@ import type { Career, Fixture, Involvement, MatchEvent, MatchReport, Player, Pos
 import { CLUB_MAP } from '../data/clubs';
 import { realisticName } from '../data/names';
 import { STAFF_PERK } from './perks';
-import { INTENSITY } from '../data/training';
+import { balanceEffects } from '../data/training';
 import { effectiveSkills, matchOverall } from './overall';
 import { teamName, teamRating } from './teams';
 import { chance, clamp, noise, poisson, randInt, rng, round1, weightedPick } from './util';
@@ -132,7 +132,9 @@ export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
 
   // ---------- injury during the match ----------
   let injuredDays = 0;
-  if (minutes > 0 && chance(injuryRisk(p, minutes, INTENSITY[c.intensity].injury))) {
+  const bal = balanceEffects(c.plan.balance);
+  const immune = c.year < c.mods.noInjuryUntil;
+  if (minutes > 0 && !immune && chance(injuryRisk(p, minutes, bal.injury * (1 - c.mods.injuryCut)))) {
     const [name, lo, hi] = weightedPick(INJURIES, (x) => x[3]);
     injuredDays = randInt(lo, hi);
     const at = randInt(onMin + 1, offMin);
@@ -162,8 +164,8 @@ export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
   // ---------- goals & involvement ----------
   const q = clamp(atk / Math.max(55, usR), 0.6, 1.35);
   const cq = clamp(creationIdx(s, pos) / Math.max(55, usR), 0.6, 1.35);
-  const gShare = clamp(GOAL_SHARE[pos] * Math.pow(q, 1.6) * traitMult(p, 'goal'), 0, 0.45);
-  const aShare = clamp(ASSIST_SHARE[pos] * Math.pow(cq, 1.5) * traitMult(p, 'assist'), 0, 0.5);
+  const gShare = clamp(GOAL_SHARE[pos] * Math.pow(q, 1.6) * traitMult(p, 'goal') * bal.share, 0, 0.45);
+  const aShare = clamp(ASSIST_SHARE[pos] * Math.pow(cq, 1.5) * traitMult(p, 'assist') * bal.share, 0, 0.5);
   let goals = 0;
   let assists = 0;
   const minutesList = (n: number) => Array.from({ length: n }, () => randInt(1, 90)).sort((a, b) => a - b);
@@ -222,7 +224,7 @@ export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
     r -= conceded * defensive * (pos === 'GK' ? 0.22 : 0.16);
     if (pos === 'GK') r += (stats.saves ?? 0) * 0.13;
     r += ((stats.keyPasses ?? 0) - assists) * 0.08 + (stats.tackles ?? 0) * 0.04 + (stats.interceptions ?? 0) * 0.04 + (stats.dribbles ?? 0) * 0.04;
-    r += (p.form - 6.7) * 0.12 + traitMult(p, 'rating');
+    r += (p.form - 6.7) * 0.12 + traitMult(p, 'rating') + bal.rating;
     if (p.fitness < 60) r -= (60 - p.fitness) / 40;
     if (minutes < 25) r = 6.1 + (r - 6.1) * 0.5;
     rating = clamp(round1(r), 3.5, 10);

@@ -5,6 +5,7 @@ import { CONTINENTAL_CLUB, CONTINENTAL_NATIONS } from '../data/tournaments';
 import { pick, shuffle, uid, poisson, clamp, chance } from './util';
 import { teamRating } from './teams';
 import { playerOverall } from './overall';
+import { divOf, leagueClubs } from './world';
 
 // Season Y runs from day 0 (1 July Y) to day 359 (30 June Y+1); 30-day months.
 export const LEAGUE_START = 36;
@@ -138,7 +139,8 @@ export function nationalOpponent(country: string, strong: boolean): string {
 export function buildSeason(career: Career, clubId: string, fromDay = 0): SeasonState {
   const club = CLUB_MAP[clubId];
   const country = getCountry(club.country);
-  const peers = clubsInCountry(club.country, club.division);
+  const division = divOf(career, clubId);
+  const peers = leagueClubs(career, club.country, division);
   const rr = roundRobin(shuffle(peers.map((c) => c.id)));
   const span = LEAGUE_END - LEAGUE_START;
   const rounds = rr.map((pairs, i) => ({ day: Math.round(LEAGUE_START + (span * i) / Math.max(1, rr.length - 1)), pairs }));
@@ -155,7 +157,7 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
   }
 
   const fixtures: Fixture[] = [];
-  const leagueName = club.division === 2 ? `${country.leagueName} 2` : country.leagueName;
+  const leagueName = division === 2 ? `${country.leagueName} 2` : country.leagueName;
   rounds.forEach((r, i) => {
     if (r.day < fromDay) return;
     const pair = r.pairs.find(([h, a]) => h === clubId || a === clubId);
@@ -172,9 +174,9 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
   }
 
   let contKey: ContinentalSpot = 'none';
-  if (fresh && club.division === 1) {
+  if (fresh && division === 1) {
     const q = career.qualified;
-    contKey = q && q.clubId === clubId ? q.key : club.continental;
+    contKey = q && q.clubId === clubId ? q.key : club.division === 1 ? club.continental : 'none';
   }
   const contName = continentalName(club.country, contKey);
   if (contKey !== 'none') {
@@ -194,7 +196,7 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
     clubName: club.name,
     country: club.country,
     leagueName,
-    division: club.division,
+    division,
     table,
     rounds,
     roundsPlayed,

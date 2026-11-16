@@ -1,6 +1,6 @@
 // Headless balance harness: auto-plays careers with a simple AI and prints
 // distributions. Run with `npm run sim [count]`.
-import { createCareer } from '../src/engines/career';
+import { createCareer, NO_SETUP, type CareerSetup } from '../src/engines/career';
 import { playMonth, finalizeRetirement } from '../src/engines/month';
 import { acceptOffer } from '../src/engines/market';
 import { openPack, playCard, cardBlocker, sellCard } from '../src/engines/cards';
@@ -15,6 +15,8 @@ import { COUNTRIES } from '../src/data/countries';
 import type { Career } from '../src/game/types';
 
 const N = Number(process.argv[2] ?? 200);
+const MAXED = process.argv.includes('--maxed');
+const SETUP: CareerSetup = MAXED ? { upgrades: { academy: 3, scouting: 2, gifted: 3, kit: 3, body: 2, binder: 2, luck: 2, agent: 1, fame: 1, longevity: 1 }, relics: ['chosen', 'gene', 'twin'] } : NO_SETUP;
 
 function manageCards(c: Career) {
   for (const pk of [...c.packs]) openPack(c, pk.uid);
@@ -43,7 +45,7 @@ function manageMarket(c: Career) {
 function run(i: number) {
   const pos = POSITIONS[i % POSITIONS.length].key;
   const country = COUNTRIES[i % COUNTRIES.length].name;
-  const c = createCareer(`Sim ${i}`, country, pos, 1000 + i);
+  const c = createCareer(`Sim ${i}`, country, pos, SETUP, 1000 + i);
   seedRng(c.rng);
   let guard = 0;
   while (!c.retired && guard++ < 400) {
@@ -84,6 +86,8 @@ console.log("Ballon d'Or", count("Ballon"), 'Golden Boot', count('Golden Boot'),
 const tiers: Record<string, number> = {};
 careers.forEach((c) => { const t = c.legacy?.tier ?? 'none'; tiers[t] = (tiers[t] ?? 0) + 1; });
 console.log('legacy', tiers);
+console.log('legacy coins per career', dist(careers.map((c) => c.coinsEarned)), 'milestones', dist(careers.map((c) => c.milestones.length)));
+console.log('promoted ever', Math.round(careers.filter((c) => c.milestones.includes('promo1')).length / N * 100) + '%');
 console.log('money at end', dist(careers.map((c) => Math.round(c.player.money / 1e6))), '($M)');
 const clubsMax = careers.map((c) => Math.max(...c.history.map((h) => CLUB_MAP[Object.values(CLUB_MAP).find((x) => h.clubs.includes(x.name))?.id ?? '']?.rating ?? 0)));
 console.log('best club rating', dist(clubsMax));

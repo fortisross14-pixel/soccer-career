@@ -42,10 +42,10 @@ export default function PlayerTab() {
                   return (
                     <div key={s.key}>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className={isKey ? 'text-lime font-semibold' : weighted ? 'text-cream' : 'text-muted'}>{s.label}{isKey ? ' ★' : ''}</span>
-                        <span className="stat-num">{Math.floor(v)}{Math.abs(d) >= 0.05 && <span className={`ml-1 text-[10px] ${d > 0 ? 'text-mint' : 'text-danger'}`}>{d > 0 ? '+' : ''}{d.toFixed(1)}</span>}<span className="text-muted text-[10px]"> /{cap}</span></span>
+                        <span className={isKey ? 'text-ink font-semibold' : weighted ? 'text-ink' : 'text-muted'}>{s.label}{isKey ? ' ★' : ''}</span>
+                        <span className="stat-num">{Math.floor(v)}{Math.abs(d) >= 0.05 && <span className={`ml-1 text-[10px] ${d > 0 ? 'text-[#178a4c]' : 'text-red'}`}>{d > 0 ? '+' : ''}{d.toFixed(1)}</span>}<span className="text-muted text-[10px]"> /{cap}</span></span>
                       </div>
-                      <div className="relative h-1.5 rounded-full bg-white/10">
+                      <div className="relative h-1.5 rounded-full bg-white">
                         <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${v}%`, background: v >= cap - 0.5 ? 'var(--legendary)' : isKey ? 'var(--lime)' : 'var(--mint)' }} />
                         <div className="absolute -top-0.5 w-0.5 h-2.5 bg-cream/70" style={{ left: `${cap}%` }} />
                       </div>
@@ -63,14 +63,14 @@ export default function PlayerTab() {
         <section className="panel p-5">
           <SectionTitle kicker={`${'★'.repeat(p.stars)}${'☆'.repeat(5 - p.stars)} prospect`} title="Profile" />
           <div className="grid grid-cols-3 gap-2">
-            <Stat label="Overall" value={<span className="text-lime">{ovr}</span>} />
+            <Stat label="Overall" value={<span className="text-ink">{ovr}</span>} />
             <Stat label="Potential" value={pot} />
             <Stat label="Peak" value={c.peakOvr} />
           </div>
           <div className="text-sm text-muted mt-4 space-y-1">
-            <div>Career phase: <span className="text-cream">{phase}</span> (prime roughly {p.peakStart}–{p.peakEnd})</div>
-            <div>Nationality: <span className="text-cream">{p.country}</span> · International: <span className="text-cream">{c.national.status}</span></div>
-            {p.traits.length > 0 && <div>Traits: <span className="text-cream">{p.traits.map((t) => TRAIT_MAP[t]?.name).join(', ')}</span></div>}
+            <div>Career phase: <span className="text-ink">{phase}</span> (prime roughly {p.peakStart}–{p.peakEnd})</div>
+            <div>Nationality: <span className="text-ink">{p.country}</span> · International: <span className="text-ink">{c.national.status}</span></div>
+            {p.traits.length > 0 && <div>Traits: <span className="text-ink">{p.traits.map((t) => TRAIT_MAP[t]?.name).join(', ')}</span></div>}
           </div>
         </section>
         <section className="panel p-5">

@@ -1,7 +1,8 @@
 import type { Career, Fixture, MonthReport, SeasonSummary } from '../game/types';
 import { CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
-import { INTENSITY } from '../data/training';
+import { balanceEffects } from '../data/training';
+import { earn, milestone, volumeMilestones, PER_EVENT } from './coins';
 import { CONT_KO, CUP_ROUNDS, applyToTable, contKnockoutOpponent, cupOpponent, makeFixture, quickResult, tablePosition, buildSeason } from './calendar';
 import { simulateMatch, roleRank } from './match';
 import { monthlyGrowth } from './growth';
@@ -69,7 +70,7 @@ export function beginMonth(c: Career) {
 function recover(c: Career, days: number) {
   if (days <= 0) return;
   const p = c.player;
-  const rate = INTENSITY[c.intensity].recovery + STAFF_PERK(p, 'recovery') + (p.age > 31 ? -0.15 : 0);
+  const rate = balanceEffects(c.plan.balance).recovery + STAFF_PERK(p, 'recovery') + (p.age > 31 ? -0.15 : 0);
   p.fitness = clamp(p.fitness + days * rate, 0, 100);
 }
 
@@ -79,6 +80,17 @@ function recordMatch(c: Career, fx: Fixture) {
   const st = s.stats;
   const t = c.totals;
   if (r.minutes <= 0) return;
+  const defensive = ['GK', 'CB', 'FB'].includes(c.player.position);
+  milestone(c, fx.comp === 'national' ? 'cap1' : 'debut');
+  if (r.involvement === 'started') milestone(c, 'start11');
+  if (r.goals) { milestone(c, 'goal1'); earn(c, `${r.goals} goal${r.goals > 1 ? 's' : ''}`, r.goals * PER_EVENT.goal); }
+  if (r.goals >= 3) { milestone(c, 'hattrick1'); earn(c, 'Hat-trick', PER_EVENT.hattrick); }
+  if (r.assists) { milestone(c, 'assist1'); earn(c, `${r.assists} assist${r.assists > 1 ? 's' : ''}`, r.assists * PER_EVENT.assist); }
+  if (r.motm) { milestone(c, 'motm1'); earn(c, 'Man of the Match', PER_EVENT.motm); }
+  if (defensive && (fx.oppGoals ?? 0) === 0 && r.minutes >= 60) { milestone(c, 'clean1'); earn(c, 'Clean sheet', PER_EVENT.cleanSheet); }
+  if (fx.comp === 'continental') { milestone(c, 'cont1'); if (r.goals) milestone(c, 'contgoal1'); }
+  if (fx.comp === 'national' && r.goals) milestone(c, 'intlgoal1');
+  if (fx.compName === 'World Cup') milestone(c, 'wc1');
   if (fx.comp === 'national') {
     st.intlCaps++; st.intlGoals += r.goals; st.intlAssists += r.assists;
     t.caps++; t.intlGoals += r.goals;
@@ -117,7 +129,7 @@ function knockouts(c: Career, fx: Fixture, news: string[]) {
     const idx = CUP_ROUNDS.findIndex((r) => r.stage === fx.stage);
     if (!won) { s.cupAlive = false; news.push(`Knocked out of the ${fx.compName} (${fx.stage}).`); return; }
     if (idx === CUP_ROUNDS.length - 1) {
-      s.cupAlive = false; s.honors.push(fx.compName);
+      s.cupAlive = false; s.honors.push(fx.compName); milestone(c, 'trophy1'); earn(c, fx.compName, PER_EVENT.trophy);
       news.push(`🏆 ${s.clubName} win the ${fx.compName}!`);
       log(c, 'trophy', `Won the ${fx.compName}.`);
       return;
@@ -138,7 +150,7 @@ function knockouts(c: Career, fx: Fixture, news: string[]) {
     const idx = CONT_KO.findIndex((r) => r.stage === fx.stage);
     if (!won) { s.contAlive = false; news.push(`Eliminated from the ${s.contName} (${fx.stage}).`); return; }
     if (idx === CONT_KO.length - 1) {
-      s.contAlive = false; s.honors.push(`${s.contName} Winner`);
+      s.contAlive = false; s.honors.push(`${s.contName} Winner`); milestone(c, 'trophy1'); milestone(c, 'contwin1'); earn(c, `${s.contName} Winner`, PER_EVENT.trophy * 2);
       news.push(`🏆 ${s.clubName} are ${s.contName} champions!`);
       log(c, 'trophy', `Won the ${s.contName}.`);
       return;
@@ -185,6 +197,7 @@ export function playMonth(c: Career): MonthReport {
   const news: string[] = [...c.notices];
   const played: string[] = [];
   const packsBefore = new Set(c.packs.map((x) => x.uid));
+  const coinsBefore = c.pendingCoins.length;
 
   let lastDay = start;
   let guard = 0;
@@ -241,6 +254,7 @@ export function playMonth(c: Career): MonthReport {
   const leagueMine = mine.filter((f) => f.comp === 'league');
   if (leagueMine.length >= 3 && avg >= 7.6) {
     addPack(c, 'gold', 'Player of the Month');
+    milestone(c, 'potm1'); earn(c, 'Player of the Month', PER_EVENT.potm);
     news.push(`⭐ ${s.leagueName} Player of the Month for ${MONTHS_LONG[c.month]}!`);
     log(c, 'award', `${s.leagueName} Player of the Month (${MONTHS_LONG[c.month]} ${calYear(c.year, c.month)}).`);
     gainReputation(c, 2);
@@ -248,7 +262,8 @@ export function playMonth(c: Career): MonthReport {
 
   // ---- reputation, trust, morale, money ----
   const lgF = getCountry(s.country).leagueRep / 85 * (s.division === 2 ? 0.6 : 1);
-  if (rated.length) gainReputation(c, ((avg - 6.7) * 0.6 * Math.min(rated.length, 4) / 4 + ga * 0.07) * lgF);
+  const scout = balanceEffects(c.plan.balance).scout * (1 + c.mods.repBonus);
+  if (rated.length) gainReputation(c, ((avg - 6.7) * 0.6 * Math.min(rated.length, 4) / 4 + ga * 0.07) * lgF * scout);
   else if (p.reputation > 40) gainReputation(c, -0.2);
   if (clubMatches.length && minutes === 0 && !p.injury) p.trust = clamp(p.trust - 2, 0, 100);
   p.morale = clamp(p.morale + (66 - p.morale) * 0.08, 0, 100);
@@ -260,9 +275,11 @@ export function playMonth(c: Career): MonthReport {
   if (c.month === 10) news.push(...endLeagueSeason(c));
   const ovrAfter = playerOverall(p);
   c.peakOvr = Math.max(c.peakOvr, ovrAfter);
+  volumeMilestones(c, ovrAfter);
+  c.cardsThisMonth = 0;
 
   const packs = c.packs.filter((x) => !packsBefore.has(x.uid));
-  const report: MonthReport = { year: c.year, month: c.month, fixtures: played, skillDeltas: deltas, ovrBefore, ovrAfter, packs, news, income, costs };
+  const report: MonthReport = { year: c.year, month: c.month, fixtures: played, skillDeltas: deltas, ovrBefore, ovrAfter, packs, news, income, costs, coins: [] };
 
   if (c.month === 11) {
     const b = ballonDor(c);
@@ -272,6 +289,7 @@ export function playMonth(c: Career): MonthReport {
     c.month++;
   }
   if (!c.retired) beginMonth(c);
+  report.coins = c.pendingCoins.slice(coinsBefore);
   c.lastReport = report;
   return report;
 }
@@ -336,6 +354,7 @@ export function finalizeRetirement(c: Career) {
   c.decisions = [];
   c.offers = [];
   c.legacy = computeLegacy(c);
+  earn(c, `Retirement · ${c.legacy.tier}`, Math.round(c.legacy.score / 10));
   log(c, 'milestone', `Retired at ${c.player.age}. Legacy: ${c.legacy.tier} (${c.legacy.score}).`);
 }
 

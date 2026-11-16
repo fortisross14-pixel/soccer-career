@@ -13,9 +13,9 @@ export default function CareerTab() {
   return (
     <div className="space-y-5">
       {c.retired && c.legacy && (
-        <section className="panel p-6 border-lime/40">
+        <section className="panel p-6 border-ink">
           <div className="eyebrow">Legacy</div>
-          <div className="font-display text-5xl font-extrabold mt-2 text-lime">{c.legacy.tier.toUpperCase()}</div>
+          <div className="font-display text-5xl uppercase mt-2 text-ink">{c.legacy.tier.toUpperCase()}</div>
           <p className="text-muted mt-1">{c.legacy.blurb}</p>
           <div className="stat-num text-xl mt-3">{c.legacy.score} pts</div>
         </section>
@@ -39,7 +39,7 @@ export default function CareerTab() {
               </tr></thead>
               <tbody>
                 {[...c.history].reverse().map((h) => (
-                  <tr key={h.year} className="border-t border-line/50 align-top">
+                  <tr key={h.year} className="border-t border-ink/15 align-top">
                     <td className="px-2 py-2 stat-num">{seasonLabel(h.year)}</td>
                     <td className="stat-num">{h.age}</td>
                     <td className="max-w-[180px]">{h.clubs}</td>

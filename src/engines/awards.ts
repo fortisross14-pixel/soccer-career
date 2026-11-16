@@ -1,10 +1,12 @@
 import type { Career, Honor } from '../game/types';
-import { CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
 import { sortedTable, tablePosition } from './calendar';
 import { addPack } from './cards';
 import { playerOverall } from './overall';
 import { chance, clamp, noise } from './util';
+import { earn, milestone, PER_EVENT } from './coins';
+import { promoteRelegate } from './world';
+import { teamName } from './teams';
 
 export function addHonor(list: Honor[], label: string) {
   const h = list.find((x) => x.label === label);
@@ -40,11 +42,29 @@ export function endLeagueSeason(c: Career): string[] {
   const p = c.player;
   const ovr = playerOverall(p);
 
-  if (pos === 1) { s.honors.push(`${s.leagueName} Title`); news.push(`🏆 ${s.clubName} are ${s.leagueName} champions!`); }
-  else news.push(`${s.clubName} finish ${ordinal(pos)} in the ${s.leagueName}.`);
+  if (pos === 1) {
+    s.honors.push(`${s.leagueName} Title`); news.push(`🏆 ${s.clubName} are ${s.leagueName} champions!`);
+    milestone(c, 'trophy1'); milestone(c, 'title1'); earn(c, `${s.leagueName} Title`, PER_EVENT.trophy);
+  } else news.push(`${s.clubName} finish ${ordinal(pos)} in the ${s.leagueName}.`);
+
+  // promotion & relegation
+  const order = sortedTable(s.table).map((r) => r.clubId);
+  const pr = promoteRelegate(c, s.country, s.division === 1 ? order : null, s.division === 2 ? order : null);
+  if (pr.up.includes(s.clubId)) {
+    news.push(`⬆️ PROMOTED! ${s.clubName} go up to the top flight.`);
+    s.awards.push('Promotion');
+    milestone(c, 'promo1'); earn(c, 'Promotion', 50);
+    addPack(c, 'gold', 'Promotion');
+    p.morale = clamp(p.morale + 10, 0, 100);
+  } else if (pr.down.includes(s.clubId)) {
+    news.push(`⬇️ Relegated. ${s.clubName} drop to the second division.`);
+    p.morale = clamp(p.morale - 12, 0, 100);
+  }
+  const others = [...pr.up, ...pr.down].filter((id) => id !== s.clubId);
+  if (others.length) news.push(`Also: ${pr.up.filter((id) => id !== s.clubId).map(teamName).join(', ') || 'none'} promoted · ${pr.down.filter((id) => id !== s.clubId).map(teamName).join(', ') || 'none'} relegated.`);
 
   // next season's continental place for this club
-  const clKey = s.division === 1 ? (pos <= Math.max(1, Math.round(n / 4)) ? 'CL' : pos <= Math.round(n / 2.4) ? 'EL' : 'none') : 'none';
+  const clKey = s.division === 1 && !pr.down.includes(s.clubId) ? (pos <= Math.max(1, Math.round(n / 4)) ? 'CL' : pos <= Math.round(n / 2.4) ? 'EL' : 'none') : 'none';
   c.qualified = { clubId: s.clubId, key: clKey };
   if (clKey !== 'none') news.push(`Qualified for next season's ${clKey === 'CL' ? 'top' : 'second-tier'} continental competition.`);
 
@@ -66,14 +86,12 @@ export function endLeagueSeason(c: Career): string[] {
   if (p.position === 'GK' && regular && avg >= 7.15 && st.cleanSheets >= leagueGames * 0.3 && chance(0.6)) awards.push(`${s.leagueName} Golden Glove`);
   if (s.contKey !== 'none' && st.contGoals >= 7) awards.push(`${s.contName} Top Scorer`);
   s.awards.push(...awards);
-  for (const a of awards) { addHonor(c.honors.individual, a); addPack(c, 'silver', a); news.push(`⭐ ${a}`); }
+  for (const a of awards) { addHonor(c.honors.individual, a); addPack(c, 'silver', a); news.push(`⭐ ${a}`); milestone(c, 'award1'); earn(c, a, PER_EVENT.award); }
 
   const trophies = s.honors.length;
   for (const h of s.honors) { addHonor(c.honors.club, h); addPack(c, 'gold', h); }
   gainReputation(c, trophies * 2 + awards.length * 2.5 + (avg - 6.8) * 4);
   c.log.unshift({ year: c.year, month: c.month, kind: 'trophy', text: `Season ends: ${s.clubName} ${ordinal(pos)} in ${s.leagueName}. ${trophies ? `Trophies: ${s.honors.join(', ')}.` : ''}` });
-  void sortedTable;
-  void CLUB_MAP;
   return news;
 }
 
@@ -92,6 +110,7 @@ export function ballonDor(c: Career): string | null {
     s.awards.push("Ballon d'Or");
     addHonor(c.honors.individual, "Ballon d'Or");
     addPack(c, 'elite', "Ballon d'Or");
+    milestone(c, 'ballon1'); earn(c, "Ballon d'Or", 200);
     gainReputation(c, 10);
     return "🏅 You win the Ballon d'Or — the best player in the world!";
   }

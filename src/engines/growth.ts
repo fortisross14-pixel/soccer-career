@@ -1,7 +1,7 @@
 import type { Career, SkillKey } from '../game/types';
 import { SKILL_KEYS, SKILL_MAP } from '../data/skills';
 import { POSITION_MAP } from '../data/positions';
-import { FOCUSES, INTENSITY } from '../data/training';
+import { FOCUSES, balanceEffects } from '../data/training';
 import { CLUB_MAP } from '../data/clubs';
 import { skillCap } from './overall';
 import { STAFF_PERK } from './perks';
@@ -19,7 +19,7 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
   const p = c.player;
   const pos = POSITION_MAP[p.position];
   const focus = FOCUSES.find((f) => f.id === c.focus) ?? FOCUSES[0];
-  const intensity = INTENSITY[c.intensity];
+  const bal = balanceEffects(c.plan.balance);
   const clubR = p.contract ? CLUB_MAP[p.contract.clubId]?.rating ?? 65 : 60;
   const coaching = clamp((clubR - 58) / 34, 0, 1);
   const minutesF = available > 0 ? 0.75 + 0.45 * clamp(minutes / (available * 90 * 0.75), 0, 1) : 0.85;
@@ -42,7 +42,7 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
         frac *= 0.6 + relevance * 0.5;
         frac *= 0.8 + coaching * 0.4;
         frac *= minutesF;
-        frac *= intensity.growth * (1 + STAFF_PERK(p, 'growth'));
+        frac *= bal.growth * (1 + STAFF_PERK(p, 'growth')) * (p.age <= 21 ? 1 + c.mods.youthGrowth : 1);
         frac *= 0.9 + p.morale / 500;
         if (def.ageCurve === 'mental') frac *= 1.15;
         if (def.ageCurve === 'physical' && p.age > 24) frac *= 0.45;
@@ -55,7 +55,6 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
       const yearsPast = p.age - p.peakEnd;
       let rate = def.ageCurve === 'physical' ? 1.5 : def.ageCurve === 'technical' ? 0.65 : 0.15;
       rate *= 1 + yearsPast * 0.25;
-      if (c.intensity === 'light') rate *= 0.9;
       delta = -(rate / 10) * (0.6 + rng() * 0.8);
       const floor = def.ageCurve === 'physical' ? 30 : 45;
       if (before + delta < floor) delta = Math.min(0, floor - before);

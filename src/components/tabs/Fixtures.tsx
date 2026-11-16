@@ -23,7 +23,7 @@ export default function Fixtures() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-display text-3xl font-bold">Season {seasonLabel(year)}</h2>
+        <h2 className="h-outline text-3xl sm:text-4xl">Season {seasonLabel(year)}</h2>
         {c.pastFixtures.length > 0 && (
           <div className="flex gap-1">
             <button className={`chip ${!showPast ? 'chip-on' : ''}`} onClick={() => setShowPast(false)}>This season</button>
@@ -34,8 +34,8 @@ export default function Fixtures() {
       {list.length === 0 && <EmptyState>No fixtures yet. Sign with a club to get your calendar.</EmptyState>}
       {[...byMonth.entries()].sort((a, b) => a[0] - b[0]).map(([m, fx]) => (
         <section key={m} className="panel overflow-hidden">
-          <div className={`px-4 py-2 text-xs font-bold uppercase tracking-[.14em] border-b border-line ${m === c.month && !showPast ? 'text-lime' : 'text-muted'}`}>{MONTHS_LONG[m]} {calYear(year, m)}</div>
-          <div className="divide-y divide-line/60">
+          <div className={`px-4 py-2 text-xs font-bold uppercase tracking-[.14em] border-b border-ink ${m === c.month && !showPast ? 'text-ink' : 'text-muted'}`}>{MONTHS_LONG[m]} {calYear(year, m)}</div>
+          <div className="divide-y divide-ink/15">
             {fx.sort((a, b) => a.day - b.day).map((f) => (
               <button key={f.id} disabled={!f.played} onClick={() => openMatch(f.id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left row-hover disabled:opacity-60 disabled:cursor-default">
                 <span className="stat-num text-xs text-muted w-6">{(f.day % 30) + 1}</span>

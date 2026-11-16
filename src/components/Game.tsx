@@ -16,20 +16,21 @@ import MonthReportModal from './modals/MonthReportModal';
 import MatchModal from './modals/MatchModal';
 import DecisionModal from './modals/DecisionModal';
 import PackReveal from './modals/PackReveal';
+import { Coin } from './ui';
 
 const TABS = [
-  { id: 'hub', label: 'Hub', icon: '⌂' },
-  { id: 'fixtures', label: 'Matches', icon: '▦' },
-  { id: 'table', label: 'Table', icon: '≡' },
-  { id: 'cards', label: 'Cards', icon: '◆' },
-  { id: 'player', label: 'Player', icon: '◉' },
-  { id: 'contract', label: 'Contract', icon: '✎' },
-  { id: 'career', label: 'Career', icon: '★' },
+  { id: 'hub', label: 'Hub' },
+  { id: 'fixtures', label: 'Matches' },
+  { id: 'table', label: 'Table' },
+  { id: 'cards', label: 'Cards' },
+  { id: 'player', label: 'Player' },
+  { id: 'contract', label: 'Contract' },
+  { id: 'career', label: 'Career' },
 ] as const;
 export type TabId = (typeof TABS)[number]['id'];
 
 export default function Game() {
-  const { career, exit, play, reports, matchId, reveal } = useGame();
+  const { career, exit, play, reports, matchId, reveal, meta } = useGame();
   const [tab, setTab] = useState<TabId>('hub');
   if (!career) return null;
   const c = career;
@@ -38,40 +39,39 @@ export default function Game() {
   const pot = potentialOverall(p);
   const club = p.contract ? CLUB_MAP[p.contract.clubId] : null;
   const blocker = canPlay(c);
-  const monthHasMatches = c.season?.fixtures.some((f) => !f.played && Math.floor(f.day / 30) === c.month) || (c.season?.rounds[c.season.roundsPlayed]?.day ?? 999) < (c.month + 1) * 30;
-  const packCount = c.packs.length;
-  const offerCount = c.offers.length;
+  const monthHasMatches = c.season?.fixtures.some((f) => !f.played && Math.floor(f.day / 30) === c.month);
 
   return (
     <div className="min-h-screen pb-28">
-      {/* ---------- HUD ---------- */}
-      <header className="sticky top-0 z-30 border-b border-line bg-night/90 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 sm:gap-5">
-          <button onClick={exit} className="w-9 h-9 shrink-0 rounded-md bg-lime text-night grid place-items-center font-display text-lg font-black" title="Main menu">XI</button>
+      <header className="sticky top-0 z-30 bg-bone border-b-[3px] border-ink">
+        <div className="scarf !h-2.5 !border-b-2" />
+        <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-3 sm:gap-4">
+          <button onClick={exit} className="w-10 h-10 shrink-0 rounded-lg bg-red text-white border-2 border-ink shadow-[2px_2px_0_#121212] grid place-items-center font-display text-lg" title="Main menu" aria-label="Main menu">XI</button>
           <div className="min-w-0 flex-1">
-            <div className="font-display text-xl sm:text-2xl font-bold leading-none truncate">{p.name}</div>
-            <div className="text-[11px] sm:text-xs text-muted truncate mt-1">{POSITION_MAP[p.position].short} · {club?.name ?? 'Free agent'} · Age {p.age} · {MONTHS_LONG[c.month]} {calYear(c.year, c.month)}</div>
+            <div className="font-display text-lg sm:text-2xl uppercase leading-none truncate">{p.name}</div>
+            <div className="text-[11px] sm:text-xs text-muted font-bold truncate mt-1">{POSITION_MAP[p.position].short} · {club?.name ?? 'Free agent'} · Age {p.age} · {MONTHS_LONG[c.month]} {calYear(c.year, c.month)}</div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <HudNum label="OVR" value={ovr} accent />
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <HudNum label="OVR" value={ovr} tone="sun" />
             <HudNum label="POT" value={pot} />
-            <div className="hidden sm:block"><HudNum label="Form" value={p.form.toFixed(1)} /></div>
-            <div className="hidden sm:block"><HudNum label="Fit" value={Math.round(p.fitness)} warn={p.fitness < 65} /></div>
-            <div className="hidden md:block"><HudNum label="Bank" value={fmtMoney(p.money)} /></div>
+            <span className="hidden sm:contents"><HudNum label="Form" value={p.form.toFixed(1)} /></span>
+            <span className="hidden sm:contents"><HudNum label="Fit" value={Math.round(p.fitness)} tone={p.fitness < 65 ? 'red' : undefined} /></span>
+            <span className="hidden md:contents"><HudNum label="Bank" value={fmtMoney(p.money)} /></span>
+            <span className="hidden md:contents"><HudNum label="Coins" value={<span className="flex items-center gap-1"><Coin />{meta.coins}</span>} /></span>
           </div>
         </div>
-        <nav className="max-w-6xl mx-auto px-2 sm:px-4 flex gap-1 overflow-x-auto no-scrollbar">
+        <nav className="max-w-6xl mx-auto px-3 sm:px-4 pb-2.5 flex gap-1.5 overflow-x-auto no-scrollbar">
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`relative px-3 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition ${tab === t.id ? 'border-lime text-cream' : 'border-transparent text-muted hover:text-cream'}`}>
-              <span className="mr-1.5 opacity-70">{t.icon}</span>{t.label}
-              {t.id === 'cards' && packCount > 0 && <span className="ml-1.5 text-[10px] bg-lime text-night rounded-full px-1.5 font-black">{packCount}</span>}
-              {t.id === 'contract' && offerCount > 0 && <span className="ml-1.5 text-[10px] bg-orange text-night rounded-full px-1.5 font-black">{offerCount}</span>}
+            <button key={t.id} onClick={() => setTab(t.id)} className={`chip whitespace-nowrap ${tab === t.id ? 'chip-on' : ''}`}>
+              {t.label}
+              {t.id === 'cards' && c.packs.length > 0 && <span className="ml-1.5 text-[10px] bg-red text-white rounded px-1.5 font-black border border-ink">{c.packs.length}</span>}
+              {t.id === 'contract' && c.offers.length > 0 && <span className="ml-1.5 text-[10px] bg-sky text-white rounded px-1.5 font-black border border-ink">{c.offers.length}</span>}
             </button>
           ))}
         </nav>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-5 animate-fade-up" key={tab}>
+      <main className="max-w-6xl mx-auto px-4 py-6 animate-fade-up" key={tab}>
         {tab === 'hub' && <Hub goTo={setTab} />}
         {tab === 'fixtures' && <Fixtures />}
         {tab === 'table' && <Table />}
@@ -81,21 +81,20 @@ export default function Game() {
         {tab === 'career' && <CareerTab />}
       </main>
 
-      {/* ---------- advance dock ---------- */}
-      <div className="fixed bottom-0 inset-x-0 z-30 border-t border-line bg-night/95 backdrop-blur">
+      <div className="fixed bottom-0 inset-x-0 z-30 bg-ink text-white border-t-[3px] border-ink">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-[.16em] text-muted font-bold">{c.retired ? 'Career over' : `Season ${seasonLabel(c.year)}`}</div>
-            <div className="text-sm font-semibold truncate">
-              {c.retired ? `${c.legacy?.tier} · ${c.legacy?.score} legacy pts` : blocker ?? (monthHasMatches ? `${MONTHS_LONG[c.month]}: matches to play` : `${MONTHS_LONG[c.month]}: no fixtures — training & recovery`)}
+            <div className="text-[10px] uppercase tracking-[.16em] text-sun font-black">{c.retired ? 'Full time' : `Season ${seasonLabel(c.year)}`}</div>
+            <div className="text-sm font-bold truncate">
+              {c.retired ? `${c.legacy?.tier} · ${c.legacy?.score} legacy pts · ${c.coinsEarned} coins earned` : blocker ?? (monthHasMatches ? `${MONTHS_LONG[c.month]}: matches to play` : `${MONTHS_LONG[c.month]}: no fixtures, training and recovery`)}
             </div>
           </div>
           {c.retired ? (
-            <button className="btn-primary" onClick={exit}>Main menu</button>
+            <button className="btn-sun" onClick={exit}>Main menu</button>
           ) : (
             <>
-              <button className="btn-ghost hidden sm:block" disabled={!!blocker} onClick={() => play(true)} title="Play months until something needs your attention">Sim to next event ⏩</button>
-              <button className="btn-primary px-5 py-3" disabled={!!blocker} onClick={() => play(false)}>PLAY {MONTHS_LONG[c.month].toUpperCase()} →</button>
+              <button className="btn-white hidden sm:inline-flex" disabled={!!blocker} onClick={() => play(true)} title="Play months until something needs your attention">Sim to event ⏩</button>
+              <button className="btn-red !px-5 !py-3" disabled={!!blocker} onClick={() => play(false)}>Play {MONTHS_LONG[c.month]} →</button>
             </>
           )}
         </div>
@@ -109,11 +108,11 @@ export default function Game() {
   );
 }
 
-function HudNum({ label, value, accent, warn }: { label: string; value: string | number; accent?: boolean; warn?: boolean }) {
+function HudNum({ label, value, tone }: { label: string; value: React.ReactNode; tone?: 'sun' | 'red' }) {
   return (
-    <div className="text-center leading-none">
-      <div className="text-[9px] uppercase tracking-[.16em] text-muted font-bold">{label}</div>
-      <div className={`stat-num text-lg sm:text-xl mt-1 ${accent ? 'text-lime' : warn ? 'text-orange' : ''}`}>{value}</div>
+    <div className={`text-center leading-none border-2 border-ink rounded-lg px-2 py-1 min-w-[44px] ${tone === 'sun' ? 'bg-sun' : tone === 'red' ? 'bg-red text-white' : 'bg-white'}`}>
+      <div className="text-[8px] uppercase tracking-[.14em] font-black opacity-70">{label}</div>
+      <div className="stat-num text-base sm:text-lg mt-0.5">{value}</div>
     </div>
   );
 }

@@ -4,10 +4,14 @@ import { createCareer } from '../engines/career';
 import { playMonth as enginePlayMonth, canPlay, finalizeRetirement, isWindow } from '../engines/month';
 import { rngState, seedRng } from '../engines/util';
 import { addToHof, firstFreeSlot, loadSlot, saveToSlot } from './save';
+import { creditCoins, loadMeta, saveMeta, startRun, type Meta } from './meta';
+import { fx } from '../components/fx';
 
 interface Ctx {
   career: Career | null;
   slot: number | null;
+  meta: Meta;
+  metaAct: (fn: (m: Meta) => Meta | string) => string | null;
   newCareer: (name: string, country: string, position: PositionKey) => boolean;
   load: (slot: number) => void;
   exit: () => void;
@@ -27,14 +31,24 @@ const GameCtx = createContext<Ctx | null>(null);
 export function GameProvider({ children }: { children: ReactNode }) {
   const [career, setCareer] = useState<Career | null>(null);
   const [slot, setSlot] = useState<number | null>(null);
+  const [meta, setMetaState] = useState<Meta>(() => loadMeta());
   const [reports, setReports] = useState<MonthReport[] | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<CardInstance[] | null>(null);
   const ref = useRef<Career | null>(null);
   const slotRef = useRef<number | null>(null);
+  const metaRef = useRef<Meta>(meta);
 
-  const commit = (c: Career) => {
+  const setMeta = (m: Meta) => { metaRef.current = m; setMetaState(m); saveMeta(m); };
+
+  const commit = (c: Career, quietCoins = false) => {
     if (c.retired && !c.legacy) { finalizeRetirement(c); addToHof(c); }
+    if (c.pendingCoins.length) {
+      const events = c.pendingCoins;
+      c.pendingCoins = [];
+      setMeta(creditCoins(metaRef.current, events));
+      if (!quietCoins) fx({ type: 'coins', events });
+    }
     ref.current = c;
     setCareer(c);
     if (slotRef.current) saveToSlot(slotRef.current, c);
@@ -48,12 +62,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     c.rng = rngState();
     commit(c);
     return out;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const metaAct = (fn: (m: Meta) => Meta | string): string | null => {
+    const out = fn(metaRef.current);
+    if (typeof out === 'string') return out;
+    setMeta(out);
+    return null;
+  };
 
   const newCareer = (name: string, country: string, position: PositionKey) => {
     const free = firstFreeSlot();
     if (!free) return false;
-    const c = createCareer(name, country, position);
+    const run = startRun(metaRef.current);
+    setMeta(run.meta);
+    const c = createCareer(name, country, position, run.setup);
     slotRef.current = free;
     setSlot(free);
     commit(c);
@@ -72,22 +96,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const exit = () => { ref.current = null; slotRef.current = null; setCareer(null); setSlot(null); setReports(null); setMatchId(null); };
 
   const play = (toEvent: boolean) => {
-    const out = act((c) => {
-      const list: MonthReport[] = [];
-      const packsAtStart = c.packs.length;
-      for (let i = 0; i < (toEvent ? 12 : 1); i++) {
-        if (canPlay(c)) break;
-        const r = enginePlayMonth(c);
-        list.push(r);
-        if (c.retired || c.decisions.length || r.seasonEnd || isWindow(c.month) || (packsAtStart < 6 && c.packs.length >= 6)) break;
-      }
-      return list;
-    });
-    if (out.length) setReports(out);
+    if (!ref.current) return;
+    const c = structuredClone(ref.current);
+    seedRng(c.rng);
+    const list: MonthReport[] = [];
+    const packsAtStart = c.packs.length;
+    for (let i = 0; i < (toEvent ? 12 : 1); i++) {
+      if (canPlay(c)) break;
+      const r = enginePlayMonth(c);
+      list.push(r);
+      if (c.retired || c.decisions.length || r.seasonEnd || isWindow(c.month) || (packsAtStart < 6 && c.packs.length >= 6)) break;
+    }
+    c.rng = rngState();
+    // coins earned while playing are shown inside the month report instead of as toasts
+    commit(c, true);
+    if (list.length) setReports(list);
   };
 
   return (
-    <GameCtx.Provider value={{ career, slot, newCareer, load, exit, act, play, reports, closeReports: () => setReports(null), matchId, openMatch: setMatchId, reveal, setReveal }}>
+    <GameCtx.Provider value={{ career, slot, meta, metaAct, newCareer, load, exit, act, play, reports, closeReports: () => setReports(null), matchId, openMatch: setMatchId, reveal, setReveal }}>
       {children}
     </GameCtx.Provider>
   );

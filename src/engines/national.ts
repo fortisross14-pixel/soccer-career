@@ -6,6 +6,7 @@ import { natRole, ROLE_LABEL } from './match';
 import { chance, clamp, noise } from './util';
 import { addHonor } from './awards';
 import { addPack } from './cards';
+import { earn, milestone, PER_EVENT } from './coins';
 
 const natId = (c: Career) => `nat:${c.player.country}`;
 
@@ -85,6 +86,7 @@ export function afterTournamentMatch(c: Career, fx: Fixture): string[] {
       c.season.honors.push(`${t.name} Winner`);
       addHonor(c.honors.national, `${t.name} Winner`);
       addPack(c, 'elite', `${t.name} Winner`);
+      milestone(c, 'trophy1'); milestone(c, 'natwin1'); earn(c, `${t.name} Winner`, PER_EVENT.trophy * 2);
       news.push(`🏆 ${c.player.country} WIN THE ${t.name.toUpperCase()}!`);
     } else push(stages[stages.indexOf(fx.stage) + 1]);
   }

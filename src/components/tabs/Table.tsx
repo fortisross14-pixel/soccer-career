@@ -30,9 +30,9 @@ export default function Table() {
             <tbody>
               {rows.map((r, i) => {
                 const me = r.clubId === s.clubId;
-                const zone = i < cl ? 'border-l-sky' : i < el ? 'border-l-orange' : 'border-l-transparent';
+                const zone = i < cl ? 'border-l-sky' : i < el ? 'border-l-[#ffa53f]' : 'border-l-transparent';
                 return (
-                  <tr key={r.clubId} className={`border-t border-line/50 ${me ? 'bg-lime/10 text-lime font-semibold' : ''}`}>
+                  <tr key={r.clubId} className={`border-t border-ink/15 ${me ? 'bg-sun text-ink font-semibold' : ''}`}>
                     <td className={`px-2 py-1.5 stat-num text-muted border-l-2 ${zone}`}>{i + 1}</td>
                     <td className="truncate max-w-[160px]">{teamName(r.clubId)} <span className="text-[10px] text-muted stat-num">{CLUB_MAP[r.clubId]?.rating}</span></td>
                     <td className="text-center stat-num">{r.p}</td><td className="text-center stat-num">{r.w}</td><td className="text-center stat-num">{r.d}</td><td className="text-center stat-num">{r.l}</td>
@@ -45,7 +45,7 @@ export default function Table() {
             </tbody>
           </table>
         </div>
-        {s.division === 1 && <div className="flex gap-4 text-[11px] text-muted mt-3"><span><span className="inline-block w-2 h-2 bg-sky mr-1" />Top continental</span><span><span className="inline-block w-2 h-2 bg-orange mr-1" />Second-tier continental</span></div>}
+        {s.division === 1 && <div className="flex gap-4 text-[11px] text-muted mt-3"><span><span className="inline-block w-2 h-2 bg-sky mr-1" />Top continental</span><span><span className="inline-block w-2 h-2 bg-[#ffa53f] mr-1" />Second-tier continental</span></div>}
       </section>
       <section className="panel p-5 h-fit">
         <SectionTitle kicker="Competitions" title="Cups" />

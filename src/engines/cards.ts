@@ -38,9 +38,13 @@ function cardWeight(c: Career, def: CardDef): number {
   }
 }
 
-function rollRarity(tier: PackTier): Rarity {
+export function handLimit(c: Career) { return MAX_HAND + c.mods.handBonus; }
+export function boostLimit(c: Career) { return MAX_BOOSTS + c.mods.extraBoosts; }
+export function playsPerMonth(c: Career) { return 2 + c.mods.extraPlays; }
+
+function rollRarity(tier: PackTier, luck: number): Rarity {
   const odds = PACKS[tier].odds;
-  let r = rng();
+  let r = rng() * (1 - Math.min(0.25, luck * 0.12));
   for (const rar of RARITY_ORDER) { r -= odds[rar]; if (r <= 0) return rar; }
   return 'common';
 }
@@ -65,10 +69,10 @@ export function openPack(c: Career, packUid: string): { cards: CardInstance[]; e
   const idx = c.packs.findIndex((pk) => pk.uid === packUid);
   if (idx < 0) return { cards: [], error: 'Pack not found.' };
   const def = PACKS[c.packs[idx].tier];
-  if (c.cards.length + def.size > MAX_HAND) return { cards: [], error: `Your hand is full (${MAX_HAND}). Use or sell some cards first.` };
+  if (c.cards.length + def.size > handLimit(c)) return { cards: [], error: `Your hand is full (${handLimit(c)}). Use or sell some cards first.` };
   c.packs.splice(idx, 1);
   const out: CardInstance[] = [];
-  const rarities = Array.from({ length: def.size }, () => rollRarity(def.tier));
+  const rarities = Array.from({ length: def.size }, () => rollRarity(def.tier, c.mods.luck));
   const g = RARITY_ORDER.indexOf(def.guarantee);
   if (!rarities.some((r) => RARITY_ORDER.indexOf(r) >= g)) rarities[0] = def.guarantee;
   rarities.sort((a, b) => RARITY_ORDER.indexOf(a) - RARITY_ORDER.indexOf(b));
@@ -110,7 +114,8 @@ export function sellCard(c: Career, cardUid: string): number {
 export function cardBlocker(c: Career, def: CardDef): string | null {
   const p = c.player;
   if (def.maxAge && p.age > def.maxAge) return `Only usable until age ${def.maxAge}.`;
-  if (def.kind === 'boost' && p.boosts.length >= MAX_BOOSTS) return `All ${MAX_BOOSTS} boost slots are active.`;
+  if (c.cardsThisMonth >= playsPerMonth(c)) return `You've played ${playsPerMonth(c)} cards this month. Play the month to refresh.`;
+  if (def.kind === 'boost' && p.boosts.length >= boostLimit(c)) return `All ${boostLimit(c)} boost slots are active.`;
   if (def.kind === 'staff' && p.staff.includes(def.id)) return 'Already on your staff.';
   if (def.kind === 'staff' && p.staff.length >= MAX_STAFF) return `Staff full (${MAX_STAFF}). Release someone first.`;
   if (def.kind === 'trait' && p.traits.includes(def.traitId!)) return 'You already have this trait.';
@@ -181,6 +186,7 @@ export function playCard(c: Career, cardUid: string): { ok: boolean; msg: string
     }
   }
   c.cards.splice(idx, 1);
+  c.cardsThisMonth++;
   c.log.unshift({ year: c.year, month: c.month, kind: 'card', text: `Played ${def.name}: ${parts.join(', ')}` });
   return { ok: true, msg: parts.join(' · ') || 'Card used.' };
 }
