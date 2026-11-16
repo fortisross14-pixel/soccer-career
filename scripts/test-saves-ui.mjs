@@ -35,6 +35,7 @@ for (const f of files) {
   await page.goto(url);
   await page.evaluate((raw) => { localStorage.clear(); localStorage.setItem('xi2_save_1', raw); }, fs.readFileSync(path.join(dir, f), 'utf8'));
   await page.reload();
+  await page.getByText('Saved careers').waitFor({ timeout: 5000 });
   const step = async (label, fn, arg) => { await page.evaluate(fn, arg); await page.waitForTimeout(60); if (await page.getByText('Something broke on this screen').count()) errors.push(`crash screen after ${label}`); };
   const playBtn = page.locator('button.btn-sun', { hasText: /^(Play|View)$/ }).first();
   if (!(await playBtn.count())) errors.push('save not listed on the home screen');
@@ -50,12 +51,43 @@ for (const f of files) {
     }
     await step('play month', () => [...document.querySelectorAll('button')].find((b) => /^Play [A-Z][a-z]+ →$/.test(b.textContent?.trim() ?? '') && !b.disabled)?.click());
     await page.waitForTimeout(300);
-    if (!(await page.evaluate(() => localStorage.getItem('xi2_save_1')))) errors.push('save vanished from storage');
+    // the save must survive a reload (and have moved out of localStorage into IndexedDB)
+    await page.reload();
+    await page.getByText('Saved careers').waitFor({ timeout: 5000 });
+    if (!(await page.locator('button.btn-sun', { hasText: /^(Play|View)$/ }).count())) errors.push('save missing after reload');
+    if (await page.evaluate(() => localStorage.getItem('xi2_save_1'))) errors.push('save still in localStorage');
   }
   if (errors.length) { failed++; console.log(`FAIL ${f}: ${[...new Set(errors)].slice(0, 3).join(' | ')}`); }
   await page.close();
 }
+// other games on the same github.io origin can fill the shared localStorage quota:
+// saving must still work and survive a reload
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(url);
+  await page.evaluate(() => {
+    localStorage.clear();
+    const chunk = 'x'.repeat(100_000);
+    try { for (let i = 0; i < 1000; i++) localStorage.setItem(`other_game_${i}`, chunk); } catch { /* full */ }
+    try { for (let i = 0; i < 1000; i++) localStorage.setItem(`other_small_${i}`, 'x'.repeat(1000)); } catch { /* full */ }
+  });
+  await page.reload();
+  await page.getByText('Saved careers').waitFor({ timeout: 5000 });
+  await page.locator('button', { hasText: 'Kick off career' }).click();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /^Play [A-Z][a-z]+ →$/.test(b.textContent?.trim() ?? ''))?.click());
+  await page.waitForTimeout(300);
+  if (await page.getByText(/Save failed|storage is full/i).count()) errors.push('save failed with full localStorage');
+  await page.reload();
+  await page.getByText('Saved careers').waitFor({ timeout: 5000 });
+  if (!(await page.locator('button.btn-sun', { hasText: /^(Play|View)$/ }).count())) errors.push('save missing after reload with full localStorage');
+  console.log(errors.length ? `FAIL full-storage: ${errors.join(' | ')}` : 'full-storage scenario OK');
+  if (errors.length) failed++;
+  await page.close();
+}
 await browser.close();
 server.kill();
-console.log(`${files.length - failed}/${files.length} saves open and play in the browser`);
+console.log(`${failed ? `${failed} FAILED` : "all passed"}: ${files.length} saves + full-storage scenario`);
 process.exit(failed ? 1 : 0);

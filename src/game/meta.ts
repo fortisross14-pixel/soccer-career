@@ -1,3 +1,4 @@
+import { kvGet, kvSet } from './storage';
 import type { CoinEvent } from './types';
 import { CRATES, DUPLICATE_REFUND, TRINKETS, TRINKET_RARITIES, UPGRADE_MAP, trinketSlots, type TrinketRarity } from '../data/legacy';
 import { cardTierFor, type CareerSetup } from '../engines/career';
@@ -20,7 +21,7 @@ const EMPTY: Meta = { coins: 0, lifetime: 0, upgrades: {}, trinkets: [], equippe
 
 export function loadMeta(): Meta {
   try {
-    const raw = localStorage.getItem(META_KEY);
+    const raw = kvGet(META_KEY);
     if (!raw) return { ...EMPTY };
     const parsed = JSON.parse(raw) as Partial<Meta> & { relics?: string[] };
     // older profiles kept consumable "relics"; they become owned trinkets
@@ -32,7 +33,7 @@ export function loadMeta(): Meta {
 }
 
 export function saveMeta(m: Meta) {
-  try { localStorage.setItem(META_KEY, JSON.stringify(m)); } catch { /* storage unavailable */ }
+  try { kvSet(META_KEY, JSON.stringify(m)); } catch { /* storage unavailable */ }
 }
 
 export function creditCoins(m: Meta, events: CoinEvent[]): Meta {

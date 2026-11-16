@@ -7,3 +7,5 @@
 - New fields on `Career` (or anything inside it) are filled automatically for old saves by `src/game/migrate.ts`.
   A new nullable object field (`foo: X | null`) needs an explicit default in `loadSlot` in `src/game/save.ts`.
 - Don't change overall balance unless asked; check with `npm run sim [n] --profile=fresh|run10`.
+- Storage goes through `src/game/storage.ts` (IndexedDB, localStorage fallback). Never call `localStorage` directly:
+  the github.io origin is shared with many other games and its localStorage is usually full.

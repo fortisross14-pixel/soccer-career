@@ -152,7 +152,10 @@ each World Cup or continental championship.
 
 ## Saves & compatibility
 
-Saves live in `localStorage` (`xi2_save_N`, profile in `xi2_meta`). Old saves must keep working after every update:
+Saves live in IndexedDB (database `xi2`, keys `xi2_save_N`, profile `xi2_meta`), see `src/game/storage.ts`.
+All GitHub Pages games of this account share one origin and its ~5 MB localStorage quota, which other games fill up,
+so localStorage is only a fallback; on first start any `xi2_*` keys there are moved into IndexedDB and removed.
+Old saves must keep working after every update:
 
 - `src/game/migrate.ts` fills in any field an old save is missing by comparing it with a freshly generated career,
   so new features don't need a hand-written migration for each field (whole new objects still get a default in `loadSlot`).
@@ -161,7 +164,7 @@ Saves live in `localStorage` (`xi2_save_N`, profile in `xi2_meta`). Old saves mu
 - A crash on any screen shows a "your career is safe" screen instead of a blank page.
 - `tests/save-fixtures/` holds saves written by every past release (early and late in a career, four positions).
   `npm run test:saves` loads each with the current code and plays two seasons; `npm run test:saves-ui` opens them in the
-  built game, visits every tab and plays a month. Both run in the deploy workflow, so a build that breaks old saves never ships.
+  built game, visits every tab, plays a month and reloads, and also checks saving works when localStorage is full. Both run in the deploy workflow, so a build that breaks old saves never ships.
 - After each release, add its saves: `npm run fixtures -- <short-commit-hash>`.
 
 ## Deploy

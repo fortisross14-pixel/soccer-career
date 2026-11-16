@@ -6,6 +6,9 @@ import { rngState, seedRng } from '../engines/util';
 import { addToHof, backupSlot, firstFreeSlot, loadSlot, saveToSlot } from './save';
 import { completeCareer, creditCoins, loadMeta, saveMeta, startRun, type Meta } from './meta';
 import { fx } from '../components/fx';
+import { onStorageError } from './storage';
+
+onStorageError((msg) => fx({ type: 'stamp', text: `${msg}!`, tone: 'red' }));
 
 interface Ctx {
   career: Career | null;

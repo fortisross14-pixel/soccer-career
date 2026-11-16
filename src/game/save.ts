@@ -5,6 +5,7 @@ import { POSITION_MAP } from '../data/positions';
 import { playerGrade } from '../engines/awards';
 import { initStars, setSeasonTargets } from '../engines/stars';
 import { upgradeSave } from './migrate';
+import { kvGet, kvRemove, kvSet } from './storage';
 
 // v2 saves. Old (v1) saves are intentionally not migrated.
 const SLOT_KEY = (n: number) => `xi2_save_${n}`;
@@ -20,13 +21,13 @@ function safe<T>(fn: () => T, fallback: T): T { try { return fn(); } catch { ret
 
 /** returns false if the browser refused to store the save (e.g. storage full or disabled) */
 export function saveToSlot(slot: number, c: Career): boolean {
-  try { localStorage.setItem(SLOT_KEY(slot), JSON.stringify(c)); return true; }
+  try { return kvSet(SLOT_KEY(slot), JSON.stringify(c)); }
   catch (e) { console.error('Could not save career', e); return false; }
 }
 
 /** a slot holds data, even if it cannot be read */
 export function slotOccupied(slot: number): boolean {
-  return safe(() => localStorage.getItem(SLOT_KEY(slot)) !== null, false);
+  return safe(() => kvGet(SLOT_KEY(slot)) !== null, false);
 }
 
 /** saves from the original version of the game (before the rebuild) */
@@ -35,7 +36,7 @@ export function legacySaveCount(): number {
 }
 
 export function loadSlot(slot: number): Career | null {
-  return parseSave(safe(() => localStorage.getItem(SLOT_KEY(slot)), null));
+  return parseSave(safe(() => kvGet(SLOT_KEY(slot)), null));
 }
 
 function parseSave(raw: string | null): Career | null {
@@ -63,32 +64,32 @@ function parseSave(raw: string | null): Career | null {
 
 /** keep a copy of the save as it was when last opened, so an update can never cost a career */
 export function backupSlot(slot: number) {
-  safe(() => { const raw = localStorage.getItem(SLOT_KEY(slot)); if (raw) localStorage.setItem(BACKUP_KEY(slot), raw); }, undefined);
+  safe(() => { const raw = kvGet(SLOT_KEY(slot)); if (raw) kvSet(BACKUP_KEY(slot), raw); }, undefined);
 }
-export function hasBackup(slot: number): boolean { return safe(() => localStorage.getItem(BACKUP_KEY(slot)) !== null, false); }
+export function hasBackup(slot: number): boolean { return safe(() => kvGet(BACKUP_KEY(slot)) !== null, false); }
 export function restoreBackup(slot: number): boolean {
-  return safe(() => { const raw = localStorage.getItem(BACKUP_KEY(slot)); if (!raw) return false; localStorage.setItem(SLOT_KEY(slot), raw); return true; }, false);
+  return safe(() => { const raw = kvGet(BACKUP_KEY(slot)); if (!raw) return false; kvSet(SLOT_KEY(slot), raw); return true; }, false);
 }
 export function backupMeta(slot: number): SaveMeta | null {
-  const c = parseSave(safe(() => localStorage.getItem(BACKUP_KEY(slot)), null));
+  const c = parseSave(safe(() => kvGet(BACKUP_KEY(slot)), null));
   return c ? safe(() => metaOf(slot, c), null) : null;
 }
 
 /** the raw save text, for downloading */
-export function exportSlot(slot: number): string | null { return safe(() => localStorage.getItem(SLOT_KEY(slot)), null); }
+export function exportSlot(slot: number): string | null { return safe(() => kvGet(SLOT_KEY(slot)), null); }
 /** put a downloaded save file into a slot; returns an error message or null */
 export function importToSlot(slot: number, text: string): string | null {
   try {
     const c = JSON.parse(text) as Career;
     if (!c?.player?.name) return 'That file is not a saved career.';
-    localStorage.setItem(SLOT_KEY(slot), text);
+    kvSet(SLOT_KEY(slot), text);
     return loadSlot(slot) ? null : 'That save could not be read.';
   } catch { return 'That file is not a saved career.'; }
 }
 
 export function deleteSlot(slot: number) {
   // the deleted career stays restorable from its backup until the slot is used again
-  safe(() => { backupSlot(slot); localStorage.removeItem(SLOT_KEY(slot)); }, undefined);
+  safe(() => { backupSlot(slot); kvRemove(SLOT_KEY(slot)); }, undefined);
 }
 
 export function slotMeta(slot: number): SaveMeta | null {
@@ -113,7 +114,7 @@ export interface HofEntry {
 }
 
 export function loadHof(): HofEntry[] {
-  return safe(() => JSON.parse(localStorage.getItem(HOF_KEY) || '[]') as HofEntry[], []);
+  return safe(() => JSON.parse(kvGet(HOF_KEY) || '[]') as HofEntry[], []);
 }
 
 export function addToHof(c: Career) {
@@ -126,5 +127,5 @@ export function addToHof(c: Career) {
     legacyScore: c.legacy?.score ?? 0, legacyTier: c.legacy?.tier ?? 'Journeyman', age: c.player.age, peakOvr: c.peakOvr, grade: playerGrade(c).letter,
   });
   list.sort((a, b) => b.legacyScore - a.legacyScore);
-  safe(() => localStorage.setItem(HOF_KEY, JSON.stringify(list.slice(0, 50))), undefined);
+  safe(() => kvSet(HOF_KEY, JSON.stringify(list.slice(0, 50))), undefined);
 }
