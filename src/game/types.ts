@@ -1,3 +1,5 @@
+import type { AwardYear, WorldStar } from '../engines/stars';
+
 // ============================================================
 // Domain types. Static "documents" (clubs, skills, cards...) and
 // the runtime Career state that the engines operate on.
@@ -163,7 +165,7 @@ export interface SeasonStats {
   intlCaps: number; intlGoals: number; intlAssists: number;
 }
 
-export interface ScorerRival { name: string; clubId: string; target: number; jitter: number }
+export interface ScorerRival { name: string; clubId: string; target: number; jitter: number; starId?: string }
 
 export interface SeasonState {
   year: number;
@@ -184,6 +186,7 @@ export interface SeasonState {
   youth?: boolean;
   stats: SeasonStats;
   scorers: ScorerRival[];
+  contScorers?: ScorerRival[];
   honors: string[];
   awards: string[];
   ovrStart: number;
@@ -295,6 +298,8 @@ export interface SeasonSummary {
   division?: number;
   scorerRank?: number;
   youth?: boolean;
+  natResult?: string;
+  ballonRank?: number | null;
 }
 
 export interface Honor { label: string; count: number }
@@ -340,7 +345,10 @@ export interface Career {
   pendingCoins: CoinEvent[];
   coinsEarned: number;
   world: { div: Record<string, Division> };
-  academy: { clubId: string } | null;   // youth academy, ages 11-19
+  academy: { clubId: string } | null;
+  stars: WorldStar[];
+  retiredStars?: WorldStar[];
+  awardsHistory: AwardYear[];   // youth academy, ages 11-19
   bestDiv: number;              // highest level reached (1 = top flight), 9 = none yet
   firstEver: string[];          // milestones unlocked for the first time on this profile
   offers: Offer[];

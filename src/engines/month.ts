@@ -11,7 +11,8 @@ import { playerOverall } from './overall';
 import { STAFF_PERK, staffMonthlyCost } from './perks';
 import { windowOffers, renewalOffer, academyWindowOffers } from './market';
 import { nationalCallUp, setupTournament, afterTournamentMatch } from './national';
-import { endLeagueSeason, ballonDor, gainReputation, computeLegacy, ordinal } from './awards';
+import { endLeagueSeason, worldAwards, gainReputation, computeLegacy, ordinal } from './awards';
+import { ageStars } from './stars';
 import { rollDecision, retirementDecision } from './decisions';
 import { chance, clamp, randInt, MONTHS_LONG, calYear } from './util';
 
@@ -300,8 +301,7 @@ export function playMonth(c: Career): MonthReport {
   const report: MonthReport = { year: c.year, month: c.month, fixtures: played, skillDeltas: deltas, ovrBefore, ovrAfter, packs, news, income, costs, coins: [] };
 
   if (c.month === 11) {
-    const b = ballonDor(c);
-    if (b) news.push(b);
+    news.push(...worldAwards(c));
     report.seasonEnd = rollover(c, news);
   } else {
     c.month++;
@@ -326,6 +326,12 @@ function rollover(c: Career, news: string[]): SeasonSummary {
   };
   summary.division = s.division;
   summary.youth = s.youth;
+  summary.ballonRank = c.awardsHistory[c.awardsHistory.length - 1]?.myBallonRank ?? null;
+  if (s.natTournament?.qualified) {
+    const tf = s.fixtures.filter((f) => f.compName === s.natTournament!.name && f.played);
+    const won = s.honors.some((h) => h.includes(s.natTournament!.name));
+    summary.natResult = tf.length ? `${s.natTournament.name}: ${won ? 'Winners' : tf[tf.length - 1].stage.startsWith('Group') ? 'Group stage' : tf[tf.length - 1].stage}` : `${s.natTournament.name}: not selected`;
+  }
   summary.scorerRank = s.youth ? undefined : scorerTable(s, p.name).myRank;
   if (summary.goals >= 20) milestone(c, 'season20');
   if (s.fixtures.filter((f) => f.comp === 'league' && f.report?.involvement === 'started').length >= 20) milestone(c, 'regular1');
@@ -359,6 +365,7 @@ function rollover(c: Career, news: string[]): SeasonSummary {
 
   p.age++;
   c.year++;
+  ageStars(c);
   c.month = 0;
   c.purchases = 0;
   p.injury = p.injury ? { ...p.injury, untilDay: p.injury.untilDay - 360, year: c.year } : null;

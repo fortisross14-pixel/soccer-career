@@ -1,4 +1,4 @@
-import type { Career, Fixture, SeasonState, SeasonStats, TableRow, ContinentalSpot } from '../game/types';
+import type { Career, Fixture, ScorerRival, SeasonState, SeasonStats, TableRow, ContinentalSpot } from '../game/types';
 import { CLUBS, CLUB_MAP, clubsInCountry } from '../data/clubs';
 import { COUNTRIES, getCountry, leagueNameFor } from '../data/countries';
 import { realisticName } from '../data/names';
@@ -207,7 +207,8 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
     contName,
     contAlive: contKey !== 'none',
     stats: emptyStats(),
-    scorers: makeScorers(club.country, division, peers.map((p) => p.id).filter((id) => id !== clubId), rounds.length, country.leagueRep),
+    scorers: withStars(makeScorers(club.country, division, peers.map((p) => p.id).filter((id) => id !== clubId), rounds.length, country.leagueRep), (career.stars ?? []).filter((st) => peers.some((pp) => pp.id === st.clubId)).map((st) => ({ name: st.name, clubId: st.clubId, target: Math.round(st.cur.goals * rounds.length / 34), jitter: rng() - 0.5, starId: st.id }))),
+    contScorers: contKey === 'none' ? [] : contRivals(career, club.country, contKey),
     honors: [],
     awards: [],
     ovrStart: playerOverall(career.player),
@@ -274,4 +275,33 @@ export function buildYouthSeason(career: Career, clubId: string, fromDay = 0): S
     stats: emptyStats(), scorers: [], honors: [], awards: [], ovrStart: playerOverall(career.player),
     clubsThisSeason: [teamName(usId)], ended: false, youth: true,
   };
+}
+
+function withStars(generic: ScorerRival[], stars: ScorerRival[]): ScorerRival[] {
+  return [...stars, ...generic].sort((a, b) => b.target - a.target).slice(0, 10);
+}
+
+/** rivals in the continental scoring race: stars at continental clubs of the same confederation */
+function contRivals(career: Career, country: string, key: ContinentalSpot): ScorerRival[] {
+  const confed = confedOf(country);
+  const stars = (career.stars ?? []).filter((st) => {
+    const cl = CLUB_MAP[st.clubId];
+    return cl && cl.continental === key && confedOf(cl.country) === confed && st.cur.cont > 0;
+  }).map((st) => ({ name: st.name, clubId: st.clubId, target: st.cur.cont, jitter: rng() - 0.5, starId: st.id }));
+  const pool = CLUBS.filter((cl) => cl.division === 1 && cl.continental === key && confedOf(cl.country) === confed);
+  const generic = Array.from({ length: 5 }, (_, i) => {
+    const cl = pool[Math.floor(rng() * pool.length)] ?? CLUB_MAP[Object.keys(CLUB_MAP)[0]];
+    return { name: realisticName(cl.country, `cont-${i}-${rng()}`), clubId: cl.id, target: randIntLocal(3, 7), jitter: rng() - 0.5 };
+  });
+  return [...stars, ...generic].sort((a, b) => b.target - a.target).slice(0, 10);
+}
+const randIntLocal = (lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
+
+/** continental scoring race, revealed as the season goes */
+export function contScorerTable(s: SeasonState, playerName: string, month: number): { rows: ScorerRow[]; myRank: number } {
+  const prog = clamp((month - 1) / 9.5, 0, 1);
+  const rows: ScorerRow[] = (s.contScorers ?? []).map((x) => ({ name: x.name, clubId: x.clubId, goals: Math.max(0, Math.floor(x.target * prog + x.jitter * prog + 0.5 * prog)), me: false }));
+  rows.push({ name: playerName, clubId: s.clubId, goals: s.stats.contGoals, me: true });
+  rows.sort((a, b) => b.goals - a.goals || (a.me ? -1 : b.me ? 1 : 0));
+  return { rows, myRank: rows.findIndex((r) => r.me) + 1 };
 }

@@ -1,6 +1,7 @@
 import type { Career, CareerMods, PositionKey, Rarity, SkillKey } from '../game/types';
 import { POSITION_MAP } from '../data/positions';
 import { milestone } from './coins';
+import { initStars, setSeasonTargets } from './stars';
 import { TRINKET_MAP, type TrinketFx } from '../data/legacy';
 import { SKILL_KEYS, SKILL_MAP } from '../data/skills';
 import { getCountry } from '../data/countries';
@@ -107,6 +108,9 @@ export function createCareer(name: string, country: string, position: PositionKe
     coinsEarned: 0,
     world: { div: {} },
     academy: null,
+    stars: [],
+    retiredStars: [],
+    awardsHistory: [],
     bestDiv: 9,
     firstEver: [],
     offers: [],
@@ -123,6 +127,8 @@ export function createCareer(name: string, country: string, position: PositionKe
     peakOvr: 0,
     retired: false,
   };
+  c.stars = initStars();
+  setSeasonTargets(c.stars);
   c.offers = academyStartOffers(c);
   c.peakOvr = playerOverall(c.player);
   addPack(c, 'silver', 'Welcome pack');

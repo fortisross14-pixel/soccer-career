@@ -11,6 +11,11 @@ import { scorerTable, sortedTable, tablePosition } from '../../engines/calendar'
 import { teamName } from '../../engines/teams';
 import { isWindow } from '../../engines/month';
 import { ordinal } from '../../engines/awards';
+import { ballonRace } from '../../engines/stars';
+import { leagueRepFor } from '../../engines/world';
+import { getCountry } from '../../data/countries';
+import { playerOverall } from '../../engines/overall';
+import { clamp } from '../../engines/util';
 import { MONTHS_LONG, fmtDay } from '../../engines/util';
 import { CompBadge, GameCard, Meter, RatingBadge, ResultPill, RoleBadge, SectionTitle, Stat, EmptyState } from '../ui';
 import { involvementLine, oppLabel } from '../format';
@@ -118,6 +123,13 @@ export default function Hub({ goTo }: { goTo: (t: TabId) => void }) {
               <Stat label="Avg rtg" value={avg} sub={`${st.motm} MOTM`} />
             </div>
             {s.stats.leagueGoals > 0 && (() => { const r = scorerTable(s, p.name).myRank; return <div className={`sticker-flat px-3 py-2 mb-3 text-sm font-bold ${r === 1 ? '!bg-sun' : ''}`}>{r === 1 ? '👟 You lead the Golden Boot race' : `👟 ${ordinal(r)} in the scoring charts`} · {s.stats.leagueGoals} league goals</div>; })()}
+            {!s.youth && c.month >= 3 && (() => {
+              const rep = leagueRepFor(getCountry(s.country).leagueRep, s.division);
+              const lf = clamp((rep / 90) ** 2, 0.2, 1.1) * ([1, 0.45, 0.2][s.division - 1] ?? 0.2);
+              const race = ballonRace(c, { ovr: playerOverall(p), goals: st.goals - st.intlGoals, assists: st.assists - st.intlAssists, leagueF: lf, eligible: true, clubName: s.clubName });
+              const r = race.findIndex((x) => x.me) + 1;
+              return r <= 30 ? <div className={`sticker-flat px-3 py-2 mb-3 text-sm font-bold ${r <= 3 ? '!bg-sun' : ''}`}>🏅 {ordinal(r)} in the Ballon d'Or race</div> : null;
+            })()}
             <MiniTable />
           </section>
         )}

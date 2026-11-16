@@ -12,6 +12,7 @@ import Cards from './tabs/Cards';
 import PlayerTab from './tabs/Player';
 import Contract from './tabs/Contract';
 import CareerTab from './tabs/CareerTab';
+import WorldTab from './tabs/WorldTab';
 import MonthReportModal from './modals/MonthReportModal';
 import MatchModal from './modals/MatchModal';
 import DecisionModal from './modals/DecisionModal';
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'hub', label: 'Hub' },
   { id: 'fixtures', label: 'Matches' },
   { id: 'table', label: 'Table' },
+  { id: 'world', label: 'World' },
   { id: 'cards', label: 'Cards' },
   { id: 'player', label: 'Player' },
   { id: 'contract', label: 'Contract' },
@@ -77,6 +79,7 @@ export default function Game() {
         {tab === 'hub' && <Hub goTo={setTab} />}
         {tab === 'fixtures' && <Fixtures />}
         {tab === 'table' && <Table />}
+        {tab === 'world' && <WorldTab />}
         {tab === 'cards' && <Cards />}
         {tab === 'player' && <PlayerTab />}
         {tab === 'contract' && <Contract />}

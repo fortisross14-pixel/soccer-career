@@ -49,13 +49,35 @@ export default function CareerTab() {
                     <td className="text-center stat-num">{h.assists}</td>
                     <td className="text-center stat-num">{h.avgRating.toFixed(2)}</td>
                     <td className="text-center stat-num">{h.leaguePos ? ordinal(h.leaguePos) : '—'}<span className="block text-[9px] text-muted font-sans font-bold">{h.leagueName}</span></td>
-                    <td className="text-xs text-muted">{[...h.honors.map((x) => `🏆 ${x}`), ...h.awards.map((x) => `⭐ ${x}`)].join(' · ')}{h.caps ? ` · 🌍 ${h.caps} caps` : ''}</td>
+                    <td className="text-xs text-muted">{[...h.honors.map((x) => `🏆 ${x}`), ...h.awards.map((x) => `⭐ ${x}`)].join(' · ')}{h.caps ? ` · 🌍 ${h.caps} caps` : ''}{h.ballonRank && h.ballonRank <= 10 ? ` · 🏅 ${ordinal(h.ballonRank)} in Ballon d'Or` : ''}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+      </section>
+
+      <section className="panel p-5">
+        <SectionTitle title="International" kicker={c.player.country} />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+          <Stat label="Caps" value={t.caps} />
+          <Stat label="Goals" value={t.intlGoals} />
+          <Stat label="Debut" value={c.national.debutAge ? `age ${c.national.debutAge}` : '—'} />
+          <Stat label="Status" value={<span className="text-sm">{c.national.status}</span>} />
+        </div>
+        {c.history.some((h) => h.caps || h.natResult) ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[420px]">
+              <thead><tr className="text-[10px] uppercase tracking-wider text-muted font-black text-left"><th className="py-1">Season</th><th className="text-center">Caps</th><th className="text-center">Goals</th><th>Tournament</th></tr></thead>
+              <tbody>
+                {[...c.history].reverse().filter((h) => h.caps || h.natResult).map((h) => (
+                  <tr key={h.year} className="border-t border-ink/10"><td className="py-1 stat-num">{seasonLabel(h.year)}</td><td className="text-center stat-num">{h.caps}</td><td className="text-center stat-num">{h.intlGoals}</td><td className="font-semibold">{h.natResult ?? '—'}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-sm text-muted font-semibold">No international football yet. Call-ups come with form and a high enough overall.</p>}
       </section>
 
       <div className="grid md:grid-cols-3 gap-5">

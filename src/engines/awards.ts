@@ -6,6 +6,7 @@ import { playerOverall } from './overall';
 import { chance, clamp, noise } from './util';
 import { earn, milestone, PER_EVENT } from './coins';
 import { promoteRelegate, leagueRepFor } from './world';
+import { worldSeasonEnd } from './stars';
 import { leagueNameFor } from '../data/countries';
 import { scorerTable } from './calendar';
 import { teamName } from './teams';
@@ -97,7 +98,8 @@ export function endLeagueSeason(c: Career): string[] {
   if (regular && avg >= 7.55 && pos <= 3 && topFlight && ovr >= rep - 6 && chance(0.55)) awards.push(`${s.leagueName} Player of the Season`);
   if (p.age <= 21 && st.leagueApps >= leagueGames * 0.45 && avg >= 7.0 && chance(0.6)) awards.push('Young Player of the Season');
   if (p.position === 'GK' && regular && avg >= 7.15 && st.cleanSheets >= leagueGames * 0.3 && chance(0.6)) awards.push(`${s.leagueName} Golden Glove`);
-  if (s.contKey !== 'none' && st.contGoals >= 7) awards.push(`${s.contName} Top Scorer`);
+  const contBest = Math.max(0, ...(s.contScorers ?? []).map((x) => x.target));
+  if (s.contKey !== 'none' && st.contGoals >= 3 && st.contGoals > contBest) awards.push(`${s.contName} Top Scorer`);
   s.awards.push(...awards);
   for (const a of awards) { addHonor(c.honors.individual, a); addPack(c, 'silver', a); news.push(`⭐ ${a}`); milestone(c, 'award1'); earn(c, a, PER_EVENT.award); }
 
@@ -108,27 +110,40 @@ export function endLeagueSeason(c: Career): string[] {
   return news;
 }
 
-/** Ballon d'Or after the summer tournament */
-export function ballonDor(c: Career): string | null {
+/** End of season: the world vote (Ballon d'Or, Golden Glove, Defender of the Year) */
+export function worldAwards(c: Career): string[] {
   const s = c.season;
-  if (!s) return null;
   const p = c.player;
-  const ovr = playerOverall(p);
-  const st = s.stats;
-  const avg = st.rated ? st.ratingSum / st.rated : 0;
-  const trophyPts = s.honors.reduce((sum, h) => sum + (h.includes('World Cup') ? 12 : h.includes('Winner') ? 8 : h.includes('Title') ? 5 : 3), 0);
-  const output = p.position === 'GK' || p.position === 'CB' ? st.cleanSheets * 0.5 : (st.goals + st.assists * 0.7) / 2.2;
-  const campaign = (ovr - 84) * 2.2 + trophyPts + output + (avg - 7) * 10 + (p.reputation - 80) * 0.4 + noise() * 4;
-  if (ovr >= 91 && s.division === 1 && chance(clamp((campaign - 44) / 45, 0, 0.5))) {
-    s.awards.push("Ballon d'Or");
-    addHonor(c.honors.individual, "Ballon d'Or");
-    addPack(c, 'elite', "Ballon d'Or");
+  const news: string[] = [];
+  const st = s?.stats;
+  const rep = s ? leagueRepFor(getCountry(s.country).leagueRep, s.division) : 60;
+  const leagueF = s && !s.youth ? clamp((rep / 90) ** 2, 0.2, 1.1) * ([1, 0.45, 0.2][s.division - 1] ?? 0.2) : 0;
+  const titles = s ? s.honors.filter((h) => !h.includes(s.contName || '§') && !(s.natTournament && h.includes(s.natTournament.name))).length : 0;
+  const year = worldSeasonEnd(c, {
+    ovr: playerOverall(p), goals: (st?.goals ?? 0) - (st?.intlGoals ?? 0), assists: (st?.assists ?? 0) - (st?.intlAssists ?? 0), cleanSheets: st?.cleanSheets ?? 0,
+    titles, cont: !!s && !!s.contName && s.honors.some((h) => h.includes(s.contName)), wc: !!s?.natTournament && s.honors.some((h) => h.includes(s.natTournament!.name)),
+    leagueF, clubName: s?.clubName ?? '—', pos: p.position, eligible: !!s && !s.youth && (st?.apps ?? 0) >= 10,
+  });
+  c.awardsHistory.push(year);
+  const win = (label: string, packTier: 'elite' | 'gold') => {
+    s?.awards.push(label);
+    addHonor(c.honors.individual, label);
+    addPack(c, packTier, label);
+    milestone(c, 'award1');
+    earn(c, label, PER_EVENT.award * 2);
+  };
+  if (year.myBallonRank === 1) {
+    win("Ballon d'Or", 'elite');
     milestone(c, 'ballon1'); earn(c, "Ballon d'Or", 200);
     gainReputation(c, 10);
-    return "🏅 You win the Ballon d'Or — the best player in the world!";
-  }
-  if (ovr >= 84 && campaign >= 22) return `You finished in the top 10 of the Ballon d'Or voting.`;
-  return null;
+    news.push("🏅 You win the Ballon d'Or — the best player in the world!");
+  } else if (year.myBallonRank && year.myBallonRank <= 10) {
+    gainReputation(c, 4);
+    news.push(`Ballon d'Or: you finish ${ordinal(year.myBallonRank)}. Winner: ${year.ballon[0].name} (${year.ballon[0].clubName}).`);
+  } else news.push(`Ballon d'Or winner: ${year.ballon[0]?.name} (${year.ballon[0]?.clubName}).`);
+  if (year.glove.me) { win('World Golden Glove', 'gold'); news.push('🧤 You win the World Golden Glove!'); }
+  if (year.defender.me) { win('World Defender of the Year', 'gold'); news.push('🛡 You are named World Defender of the Year!'); }
+  return news;
 }
 
 export function ordinal(n: number): string {

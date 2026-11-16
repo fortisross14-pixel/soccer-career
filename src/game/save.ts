@@ -3,6 +3,7 @@ import { playerOverall } from '../engines/overall';
 import { CLUB_MAP } from '../data/clubs';
 import { POSITION_MAP } from '../data/positions';
 import { playerGrade } from '../engines/awards';
+import { initStars, setSeasonTargets } from '../engines/stars';
 
 // v2 saves. Old (v1) saves are intentionally not migrated.
 const SLOT_KEY = (n: number) => `xi2_save_${n}`;
@@ -24,7 +25,15 @@ export function loadSlot(slot: number): Career | null {
     const raw = localStorage.getItem(SLOT_KEY(slot));
     if (!raw) return null;
     const c = JSON.parse(raw) as Career;
-    return c.version === 2 ? c : null;
+    if (c.version !== 2) return null;
+    // careers saved before the world existed get one now
+    if (!c.stars?.length) { c.stars = initStars(); setSeasonTargets(c.stars); }
+    c.awardsHistory ??= [];
+    c.retiredStars ??= [];
+    c.academy ??= null;
+    c.firstEver ??= [];
+    c.bestDiv ??= 9;
+    return c;
   }, null);
 }
 

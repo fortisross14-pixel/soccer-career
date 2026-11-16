@@ -116,9 +116,20 @@ better, but you play less if you're not good enough). You play a youth league ea
 - Visual style: **Terrace** (matchday stickers, scarves, pitch stripes), with ticker-tape, sticker-slap
   goal celebrations, pack tearing and coin toasts (`components/FxLayer.tsx`).
 
-## Known gaps / next steps
+## The football world
 
-- Competition leaderboards (top scorers, Ballon d'Or race, best by year, most titles) are not built yet.
+About 45 persistent fictional **world stars** age, develop, change clubs, score, win titles and retire
+around you (`engines/stars.ts`). Every season they feed:
+- the league **Golden Boot race** and the **continental top-scorer race**, both with your rank,
+- the **Ballon d'Or vote** (live provisional standings, decided in June), **World Golden Glove** and
+  **World Defender of the Year**, where you compete with them on equal terms,
+- **awards by year** (winners, your Ballon rank, league and continental champions), and
+- **all-time leaders** for titles, goals and Ballon d'Ors, with retired stars kept in the record.
+
+The Career tab also tracks your international career season by season, including how far you went at
+each World Cup or continental championship.
+
+## Known gaps / next steps
 - Teammates and opponents are generated names, not persistent squads.
 - Card catalogue and decision pool are a first pass and need more content.
 
