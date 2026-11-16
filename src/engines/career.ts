@@ -1,6 +1,7 @@
 import type { Career, CareerMods, PositionKey, Rarity, SkillKey } from '../game/types';
 import { POSITION_MAP } from '../data/positions';
 import { milestone } from './coins';
+import { adjTrust } from './trust';
 import { initStars, setSeasonTargets } from './stars';
 import { TRINKET_MAP, type TrinketFx } from '../data/legacy';
 import { SKILL_KEYS, SKILL_MAP } from '../data/skills';
@@ -179,7 +180,7 @@ export function requestTransfer(c: Career): string {
   if (c.asked.transfer || p.transferListed) return 'You are already on the transfer list.';
   c.asked.transfer = true;
   p.transferListed = true;
-  p.trust = clamp(p.trust - 12, 0, 100);
+  adjTrust(c, -12, 'Transfer request');
   p.morale = clamp(p.morale + 3, 0, 100);
   c.log.unshift({ year: c.year, month: c.month, kind: 'transfer', text: `Handed in a transfer request at ${CLUB_MAP[p.contract.clubId].name}.` });
   if (isWindow(c.month)) {

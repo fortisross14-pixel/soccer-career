@@ -14,6 +14,7 @@ import { nationalCallUp, setupTournament, afterTournamentMatch } from './nationa
 import { endLeagueSeason, worldAwards, gainReputation, computeLegacy, ordinal } from './awards';
 import { ageStars } from './stars';
 import { aggregate } from './statline';
+import { adjTrust, setTrust } from './trust';
 import { rollDecision, retirementDecision } from './decisions';
 import { chance, clamp, noise, randInt, MONTHS_LONG, calYear } from './util';
 
@@ -299,7 +300,7 @@ export function playMonth(c: Career): MonthReport {
   const scout = balanceEffects(c.plan.balance).scout * (1 + c.mods.repBonus);
   if (rated.length) gainReputation(c, ((avg - 6.7) * 0.6 * Math.min(rated.length, 4) / 4 + ga * 0.07) * lgF * scout);
   else if (p.reputation > 40) gainReputation(c, -0.2);
-  if (clubMatches.length && minutes === 0 && !p.injury) p.trust = clamp(p.trust - 2, 0, 100);
+  if (clubMatches.length && minutes === 0 && !p.injury) adjTrust(c, -2, 'Did not play');
   p.morale = clamp(p.morale + (66 - p.morale) * 0.08, 0, 100);
   const income = p.contract ? Math.round(p.contract.wage / 12) : 0;
   const costs = staffMonthlyCost(p);
@@ -323,6 +324,11 @@ export function playMonth(c: Career): MonthReport {
   }
   if (!c.retired) beginMonth(c);
   report.coins = c.pendingCoins.slice(coinsBefore);
+  const tItems = (c.trustLog ?? []).filter((x) => Math.abs(x.delta) >= 0.05).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const tSum = tItems.reduce((a, x) => a + x.delta, 0);
+  report.trust = { start: p.trust - tSum, end: p.trust, items: tItems };
+  c.lastTrust = report.trust;
+  c.trustLog = [];
   c.lastReport = report;
   return report;
 }
@@ -369,7 +375,7 @@ function rollover(c: Career, news: string[]): SeasonSummary {
         p.contract = null;
         news.push(`Loan over, and your ${parent.name} contract has expired. You are a free agent.`);
       }
-      p.trust = 50;
+      setTrust(c, 50, 'Back at your club');
     } else {
       ct.yearsLeft--;
       if (ct.yearsLeft <= 0) {

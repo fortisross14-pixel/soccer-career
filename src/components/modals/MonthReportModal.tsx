@@ -57,6 +57,12 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
   const title = reports.length === 1 ? `${MONTHS_LONG[first.month]} ${calYear(first.year, first.month)}` : `${MONTHS_LONG[first.month]} – ${MONTHS_LONG[last.month]}`;
   const season = last.seasonEnd;
   const cardsPlayed = reports.flatMap((r) => r.cardsPlayed ?? []);
+  const trustReps = reports.map((r) => r.trust).filter((x): x is NonNullable<typeof x> => !!x);
+  const trust = trustReps.length ? (() => {
+    const merged: Record<string, number> = {};
+    for (const t of trustReps) for (const it of t.items) merged[it.label] = (merged[it.label] ?? 0) + it.delta;
+    return { start: trustReps[0].start, end: trustReps[trustReps.length - 1].end, items: Object.entries(merged).map(([label, delta]) => ({ label, delta })).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)) };
+  })() : null;
   const lucks = reports.map((r) => r.luck).filter((x): x is number => typeof x === 'number');
   const luck = lucks.length ? lucks.reduce((a, b) => a + b, 0) / lucks.length : null;
 
@@ -121,6 +127,15 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
             </div>
             {luck !== null && (
               <div>
+                {trust && (
+                  <div className="mb-3">
+                    <div className="eyebrow mb-2">Manager trust</div>
+                    <div className="sticker-flat px-3 py-2 text-sm">
+                      <div className="font-bold">{Math.round(trust.start)} → {Math.round(trust.end)} <span className={trust.end - trust.start >= 0 ? 'text-[#178a4c]' : 'text-red'}>({trust.end - trust.start >= 0 ? '+' : ''}{(trust.end - trust.start).toFixed(1)})</span></div>
+                      {trust.items.length > 0 && <div className="text-[11px] text-muted font-semibold mt-0.5">{trust.items.map((x) => `${x.label} ${x.delta >= 0 ? '+' : ''}${x.delta.toFixed(1)}`).join(' · ')}</div>}
+                    </div>
+                  </div>
+                )}
                 <div className="eyebrow mb-2">Luck</div>
                 <div className={`sticker-flat px-3 py-2 text-sm font-bold ${luck > 0.4 ? '!bg-[#3fcf7f]' : luck < -0.4 ? '!bg-[#ffb3b8]' : ''}`}>
                   {luck > 0.4 ? '🍀 Lucky month: everything clicked.' : luck < -0.4 ? '🌧 Rough month: nothing went your way.' : luck > 0.1 ? 'Slightly kind month.' : luck < -0.1 ? 'Slightly unlucky month.' : 'An ordinary month.'}

@@ -9,6 +9,7 @@ import { STAFF_PERK } from './perks';
 import { divOf, leagueClubs } from './world';
 import { maxDivision } from '../data/countries';
 import { milestone } from './coins';
+import { adjTrust, setTrust } from './trust';
 import { chance, clamp, pick, randInt, rng, shuffle, uid } from './util';
 
 const TIER_WAGE: Record<ClubDef['tier'], number> = { Elite: 4_200_000, Strong: 2_200_000, Mid: 1_000_000, Small: 380_000, Youth: 60_000 };
@@ -179,7 +180,7 @@ export function acceptOffer(c: Career, offerUid: string): string {
     p.contract.wage = o.wage;
     p.contract.yearsLeft = o.years + 1; // extension starts after this season
     p.contract.promisedRole = o.role;
-    p.trust = clamp(p.trust + 6, 0, 100);
+    adjTrust(c, 6, 'Signed an extension');
     c.offers = c.offers.filter((x) => x.kind !== 'renewal');
     c.log.unshift({ year: c.year, month: c.month, kind: 'transfer', text: `Signed a contract extension with ${club.name} until ${c.year + o.years + 1} (${ROLE_LABEL[o.role]}).` });
     return `Extension signed with ${club.name}.`;
@@ -188,7 +189,7 @@ export function acceptOffer(c: Career, offerUid: string): string {
     const fromYouth = !!c.academy;
     c.academy = { clubId: club.id };
     c.offers = [];
-    p.trust = 50;
+    setTrust(c, 50, 'New academy');
     c.log.unshift({ year: c.year, month: c.month, kind: 'transfer', text: `${fromYouth ? 'Moved to' : 'Joined'} the ${club.name} academy at age ${p.age}.` });
     const playedAny = c.season?.fixtures.some((f) => f.played);
     c.season = buildYouthSeason(c, club.id, playedAny ? day : 0);
@@ -202,7 +203,7 @@ export function acceptOffer(c: Career, offerUid: string): string {
   } else {
     p.contract = { clubId: club.id, wage: o.wage, yearsLeft: o.years, promisedRole: o.role };
   }
-  p.trust = 52 + (roleRank(o.role) - 2) * 4;
+  setTrust(c, 52 + (roleRank(o.role) - 2) * 4, 'New club');
   p.transferListed = false;
   c.offers = [];
   milestone(c, 'contract');

@@ -1,5 +1,6 @@
 import type { Career, Decision, DecisionChoice, SkillKey } from '../game/types';
-import { skillCap } from './overall';
+import { addSkill } from './overall';
+import { adjTrust } from './trust';
 import { CLUB_MAP } from '../data/clubs';
 import { POSITION_MAP } from '../data/positions';
 import { currentRole, roleRank } from './match';
@@ -229,17 +230,17 @@ export function applyDecision(c: Career, d: Decision, choiceId: string): string[
   const p = c.player;
   const e = ch.effects;
   const out: string[] = [];
-  if (e.trust) p.trust = clamp(p.trust + e.trust, 0, 100);
+  if (e.trust) adjTrust(c, e.trust, d.title);
   if (e.morale) p.morale = clamp(p.morale + e.morale, 0, 100);
   if (e.fitness) p.fitness = clamp(p.fitness + e.fitness, 5, 100);
   if (e.reputation) p.reputation = clamp(p.reputation + e.reputation, 0, 99);
   if (e.form) p.form = clamp(p.form + e.form, 4, 9.5);
   if (e.money) p.money += e.money;
   if (e.heal && p.injury) p.injury.untilDay -= e.heal;
-  if (e.skills) for (const [k, v] of Object.entries(e.skills)) { const key = k as SkillKey; p.skills[key] = clamp(p.skills[key] + (v as number), 5, Math.max(p.skills[key], skillCap(p, key))); }
+  if (e.skills) for (const [k, v] of Object.entries(e.skills)) addSkill(p, k as SkillKey, v as number);
   if (e.pack) { addPack(c, e.pack, d.title); out.push(`Received a ${e.pack} pack`); }
   if (e.transferList) {
-    if (d.id === 'minutes') p.trust = clamp(p.trust - 12, 0, 100);
+    if (d.id === 'minutes') adjTrust(c, -12, 'Asked to leave');
     p.transferListed = true;
     out.push('You are now open to offers');
   }

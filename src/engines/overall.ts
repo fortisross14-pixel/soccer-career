@@ -57,3 +57,38 @@ export function potentialOverall(p: Pick<Player, 'potential' | 'position'>): num
 export function displayOverall(p: Player): number {
   return overallOf(p.skills, p.position, 21);
 }
+
+/** unrounded weighted skill average (no age factor) */
+export function rawAverage(skills: Record<SkillKey, number>, position: PositionKey): number {
+  const pos = POSITION_MAP[position];
+  let total = 0;
+  let wSum = 0;
+  for (const [k, w] of Object.entries(pos.weights)) { total += (skills[k as SkillKey] ?? 25) * (w as number); wSum += w as number; }
+  return total / wSum;
+}
+
+/** how many overall points are left before you hit your POT */
+export function potRoom(p: Player): number {
+  return Math.max(0, potentialOverall(p) + 0.49 - rawAverage(p.skills, p.position));
+}
+
+/**
+ * Add to a skill under the POT budget: POT caps your overall, not each skill,
+ * so any attribute can be specialised as long as the overall stays at or
+ * below POT. Skills that don't count for your position can rise a little
+ * above their natural level. Returns the amount actually added.
+ */
+export function addSkill(p: Player, key: SkillKey, amount: number): number {
+  if (amount <= 0) { const b = p.skills[key]; p.skills[key] = clamp(b + amount, 5, 99); return p.skills[key] - b; }
+  const before = p.skills[key];
+  const w = POSITION_MAP[p.position].weights[key] ?? 0;
+  let allowed = amount;
+  if (w > 0) {
+    const wSum = Object.values(POSITION_MAP[p.position].weights).reduce((a, b) => a + (b as number), 0);
+    allowed = Math.min(amount, (potRoom(p) * wSum) / w);
+  } else {
+    allowed = Math.min(amount, Math.max(0, skillCap(p, key) + 15 - before));
+  }
+  p.skills[key] = clamp(before + Math.max(0, allowed), 5, 99);
+  return p.skills[key] - before;
+}

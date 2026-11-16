@@ -100,7 +100,10 @@ export default function Hub({ goTo }: { goTo: (t: TabId) => void }) {
           <div className="space-y-3">
             <Meter label="Fitness" value={p.fitness} />
             <Meter label="Morale" value={p.morale} />
-            <Meter label="Manager trust" value={p.trust} />
+            <div>
+              <Meter label="Manager trust" value={p.trust} />
+              <TrustNote />
+            </div>
             <Meter label="Form" value={p.form} max={10} tone={p.form >= 7 ? 'good' : p.form >= 6.4 ? 'warn' : 'bad'} />
             <Meter label="Reputation" value={p.reputation} tone="sun" />
           </div>
@@ -274,5 +277,22 @@ function SquadPanel() {
         return <p className="text-[11px] text-muted font-semibold mt-2">{b.label} group (ages {b.min}–{b.max}): at {c.player.age} you are {pos}. Older groups are stronger, and teammates average about {b.peerAge} years old, so you have the edge when you are one of the oldest in your group.</p>;
       })()}
     </section>
+  );
+}
+
+function TrustNote() {
+  const { career } = useGame();
+  const c = career!;
+  const pending = (c.trustLog ?? []).filter((x) => Math.abs(x.delta) >= 0.05);
+  const last = c.lastTrust;
+  const items = pending.length ? pending : last?.items ?? [];
+  const total = items.reduce((a, x) => a + x.delta, 0);
+  if (!items.length) return <p className="text-[10px] text-muted font-semibold mt-1">Rises with match ratings above 6.75 (goals and assists lift your rating). Falls when you don't play.</p>;
+  const f = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
+  return (
+    <div className="text-[10px] font-bold mt-1">
+      <span className={total >= 0 ? 'text-[#178a4c]' : 'text-red'}>{f(total)} {pending.length ? 'so far this month' : 'last month'}</span>
+      <span className="text-muted"> · {items.slice(0, 4).map((x) => `${x.label} ${f(x.delta)}`).join(' · ')}</span>
+    </div>
   );
 }

@@ -3,7 +3,8 @@ import { CARD_DEFS, CARD_MAP, MAX_BOOSTS, MAX_HAND, MAX_STAFF, MAX_TRAITS, PACKS
 import { POSITION_MAP } from '../data/positions';
 import { SKILL_MAP } from '../data/skills';
 import { TRAIT_MAP } from '../data/traits';
-import { skillCap, potentialOverall } from './overall';
+import { addSkill, potentialOverall } from './overall';
+import { adjTrust } from './trust';
 import { clamp, rng, uid, weightedPick } from './util';
 
 export function cardSkills(c: Career, def: CardDef): Partial<Record<SkillKey, number>> {
@@ -139,15 +140,12 @@ export function playCard(c: Career, cardUid: string): { ok: boolean; msg: string
     case 'skill': {
       let wasted = 0;
       for (const [k, v] of Object.entries(cardSkills(c, def)) as [SkillKey, number][]) {
-        const cap = skillCap(p, k);
-        const before = p.skills[k];
         const ageF = p.age > p.peakEnd ? 0.5 : p.age >= 30 ? 0.75 : 1;
-        const after = clamp(before + v * ageF, 0, Math.max(before, cap));
-        p.skills[k] = after;
-        wasted += v - (after - before);
-        if (after > before) parts.push(`+${Math.round((after - before) * 10) / 10} ${SKILL_MAP[k].label}`);
+        const got = addSkill(p, k, v * ageF);
+        wasted += v * ageF - got;
+        if (got > 0.01) parts.push(`+${Math.round(got * 10) / 10} ${SKILL_MAP[k].label}`);
       }
-      if (wasted > 0.05) parts.push(`${Math.round(wasted * 10) / 10} lost at your ceiling — raise Potential`);
+      if (wasted > 0.05) parts.push(`${Math.round(wasted * 10) / 10} lost: your overall is at your POT. Raise Potential to keep growing`);
       break;
     }
     case 'boost': {
@@ -158,7 +156,7 @@ export function playCard(c: Career, cardUid: string): { ok: boolean; msg: string
     case 'recovery': {
       if (def.fitness) { p.fitness = clamp(p.fitness + def.fitness, 0, 100); parts.push(`+${def.fitness} fitness`); }
       if (def.morale) { p.morale = clamp(p.morale + def.morale, 0, 100); parts.push(`+${def.morale} morale`); }
-      if (def.trust) { p.trust = clamp(p.trust + def.trust, 0, 100); parts.push(`+${def.trust} trust`); }
+      if (def.trust) { adjTrust(c, def.trust, def.name); parts.push(`+${def.trust} trust`); }
       if (def.reputation) { p.reputation = clamp(p.reputation + def.reputation, 0, 99); parts.push(`+${def.reputation} reputation`); }
       if (def.heal && p.injury) {
         p.injury.untilDay -= def.heal;
@@ -176,7 +174,7 @@ export function playCard(c: Career, cardUid: string): { ok: boolean; msg: string
     }
     case 'trait': {
       p.traits.push(def.traitId!);
-      for (const [k, v] of Object.entries(def.skills ?? {}) as [SkillKey, number][]) p.skills[k] = clamp(p.skills[k] + v, 0, Math.max(p.skills[k], skillCap(p, k) + 3));
+      for (const [k, v] of Object.entries(def.skills ?? {}) as [SkillKey, number][]) addSkill(p, k, v);
       parts.push(`Trait unlocked: ${TRAIT_MAP[def.traitId!]?.name ?? def.name}`);
       break;
     }

@@ -2,6 +2,7 @@ import type { Career, Fixture, Involvement, MatchEvent, MatchReport, Player, Pos
 import { CLUB_MAP } from '../data/clubs';
 import { realisticName } from '../data/names';
 import { STAFF_PERK } from './perks';
+import { adjTrust } from './trust';
 import { balanceEffects } from '../data/training';
 import { effectiveSkills, matchOverall, overallOf } from './overall';
 import { academyRating, lineOffset, teamCountry, teamName, teamRating, type Line } from './teams';
@@ -244,7 +245,7 @@ export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
     const cost = (minutes / 90) * (13.5 - s.stamina / 12) * (p.traits.includes('engine') ? 0.8 : 1);
     p.fitness = clamp(p.fitness - cost, 5, 100);
     p.form = round1(p.form * 0.7 + (rating ?? 6.5) * 0.3);
-    if (!isNat) p.trust = clamp(p.trust + ((rating ?? 6.5) - 6.75) * 2.2 + (p.traits.includes('captain') ? 0.3 : 0), 0, 100);
+    if (!isNat) adjTrust(c, ((rating ?? 6.5) - 6.75) * 2.2 + (p.traits.includes('captain') ? 0.3 : 0), 'Match ratings');
     p.boosts = p.boosts.map((b) => ({ ...b, matchesLeft: b.matchesLeft - 1 })).filter((b) => b.matchesLeft > 0);
   } else if (involvement === 'dropped' || involvement === 'bench') {
     p.morale = clamp(p.morale - (p.contract && ROLE_RANK[p.contract.promisedRole] >= 3 ? 2 : 0.7), 0, 100);

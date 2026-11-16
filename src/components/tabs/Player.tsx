@@ -2,7 +2,7 @@ import { useGame } from '../../game/store';
 import { CATEGORY_ORDER, SKILLS } from '../../data/skills';
 import { POSITION_MAP } from '../../data/positions';
 import { TRAIT_MAP } from '../../data/traits';
-import { displayOverall, potentialOverall, skillCap } from '../../engines/overall';
+import { displayOverall, potentialOverall, potRoom, skillCap } from '../../engines/overall';
 import { SectionTitle, Stat, SubTabs } from '../ui';
 import { useState } from 'react';
 import PlayerStats from './PlayerStats';
@@ -15,6 +15,7 @@ function SkillsView() {
   const p = c.player;
   const pos = POSITION_MAP[p.position];
   const ovr = displayOverall(p);
+  const room = Math.floor(potRoom(p));
   const pot = potentialOverall(p);
   const lastDeltas = c.lastReport?.skillDeltas ?? {};
   const phase = p.age < p.peakStart ? 'Developing' : p.age <= p.peakEnd ? 'Prime' : 'Declining';
@@ -22,7 +23,11 @@ function SkillsView() {
   return (
     <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
       <section className="panel p-5">
-        <SectionTitle kicker={pos.name} title="Attributes" right={<span className="text-xs text-muted">bar marker = your ceiling</span>} />
+        <SectionTitle kicker={pos.name} title="Attributes" right={<span className="text-xs text-muted">marker = natural level</span>} />
+        <div className={`sticker-flat px-3 py-2 mb-4 text-sm font-bold ${room < 1 ? '!bg-[#ffb3b8]' : ''}`}>
+          OVR {ovr} / POT {pot} · {room < 1 ? 'at your potential: nothing else will grow until you raise POT with a Potential card' : `${room} overall points left to grow`}
+          <span className="block text-[11px] text-muted font-semibold mt-0.5">POT caps your overall, not each attribute. Natural training brings each attribute towards its marker; skill cards can push any attribute past it, as long as your overall stays within POT.</span>
+        </div>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
           {CATEGORY_ORDER.filter((cat) => cat !== 'Goalkeeping' || p.position === 'GK').map((cat) => (
             <div key={cat}>
@@ -51,7 +56,7 @@ function SkillsView() {
             </div>
           ))}
         </div>
-        <p className="text-[11px] text-muted mt-5">★ key attributes for your position. Only weighted attributes (white) affect your overall. Gold bars are at their ceiling, so use Potential cards to raise it.</p>
+        <p className="text-[11px] text-muted mt-5">★ key attributes for your position. Only weighted attributes (white) count towards your overall. Gold bars are at or past their natural level.</p>
       </section>
 
       <div className="space-y-5">

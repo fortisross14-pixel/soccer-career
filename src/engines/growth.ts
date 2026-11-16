@@ -3,7 +3,7 @@ import { SKILL_KEYS, SKILL_MAP } from '../data/skills';
 import { POSITION_MAP } from '../data/positions';
 import { FOCUSES, balanceEffects } from '../data/training';
 import { CLUB_MAP } from '../data/clubs';
-import { skillCap } from './overall';
+import { potRoom, skillCap } from './overall';
 import { STAFF_PERK } from './perks';
 import { clamp, rng } from './util';
 
@@ -36,7 +36,8 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
     let delta = 0;
 
     if (p.age <= p.peakEnd) {
-      const room = cap - before;
+      // POT caps the overall: once you're there, attributes that count for your position stop growing
+      const room = w > 0 && potRoom(p) <= 0.01 ? 0 : cap - before;
       if (room > 0.05) {
         let frac = p.age < 19 ? 0.2 : p.age < 21 ? 0.18 : p.age < p.peakStart ? 0.15 : 0.05;
         frac *= 0.6 + relevance * 0.5;

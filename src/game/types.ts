@@ -282,6 +282,7 @@ export interface MonthReport {
   packs: PackInstance[];
   coins: CoinEvent[];
   cardsPlayed?: CardPlay[];
+  trust?: { start: number; end: number; items: { label: string; delta: number }[] };
   luck?: number;
   news: string[];
   income: number;
@@ -350,6 +351,8 @@ export interface Career {
   plan: { balance: number };    // 0 = all training ground, 100 = all match day
   cardsThisMonth: number;
   monthCards?: CardPlay[];
+  trustLog?: { label: string; delta: number }[];
+  lastTrust?: { start: number; end: number; items: { label: string; delta: number }[] };
   luck?: number;
   mods: CareerMods;
   relics: string[];
