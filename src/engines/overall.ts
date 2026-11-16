@@ -52,3 +52,8 @@ export function allCaps(p: Pick<Player, 'potential' | 'position'>): Record<Skill
 export function potentialOverall(p: Pick<Player, 'potential' | 'position'>): number {
   return overallOf(allCaps(p), p.position, 25);
 }
+
+/** the OVR shown to the player: plain weighted skills, without the hidden youth-maturity factor */
+export function displayOverall(p: Player): number {
+  return overallOf(p.skills, p.position, 21);
+}

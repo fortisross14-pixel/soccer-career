@@ -285,3 +285,26 @@ export function academyWindowOffers(c: Career): Offer[] {
   }
   return out;
 }
+
+/** ask your agent for a move where you will actually play (any window, academy included) */
+export function seekMinutes(c: Career): { offers: Offer[]; msg: string } {
+  const p = c.player;
+  const ovr = playerOverall(p);
+  const out: Offer[] = [];
+  const currentId = c.academy?.clubId ?? p.contract?.clubId;
+  const home = CLUBS.filter((cl) => cl.country === p.country && cl.id !== currentId);
+  if (c.academy && p.age < 19) {
+    // academies where you'd be a regular
+    const fits = home.filter((cl) => roleRank(squadRole(ovr, academyRating(cl.id, p.age))) >= 3);
+    const pickA = shuffle(fits).sort((a, b) => b.rating - a.rating).slice(0, 4);
+    shuffle(pickA).slice(0, randInt(1, 2)).forEach((cl) => out.push(academyOffer(c, cl, 'Academy where you would play')));
+  }
+  if (!c.academy || p.age >= 16) {
+    const intl = p.reputation >= 28 || p.age >= 20;
+    const pool = (c.academy ? home : CLUBS.filter((cl) => cl.id !== currentId && (cl.country === p.country || intl)))
+      .filter((cl) => roleRank(squadRole(ovr, cl.rating)) >= (c.academy ? 2 : 3) && cl.rating >= ovr - 10);
+    const best = [...pool].sort((a, b) => b.rating - a.rating).slice(0, 6);
+    shuffle(best).slice(0, randInt(1, 3)).forEach((cl) => out.push(makeOffer(c, cl, 'transfer', c.academy ? 'Turn pro · regular minutes' : 'More minutes')));
+  }
+  return { offers: out, msg: out.length ? `Your agent found ${out.length} club${out.length > 1 ? 's' : ''} where you would play more.` : 'Your agent found nobody this time. Try again next window.' };
+}

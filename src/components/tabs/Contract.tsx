@@ -3,11 +3,11 @@ import { useGame } from '../../game/store';
 import type { Offer } from '../../game/types';
 import { CLUB_MAP } from '../../data/clubs';
 import { acceptOffer, pushOffer, rejectOffer, type PushAsk } from '../../engines/market';
-import { canRequestLoan, requestLoan, requestTransfer } from '../../engines/career';
+import { canRequestLoan, canSeekMinutes, requestLoan, requestMinutes, requestTransfer } from '../../engines/career';
 import { currentRole, roleRank } from '../../engines/match';
 import { continentalName } from '../../engines/calendar';
 import { isWindow } from '../../engines/month';
-import { playerOverall } from '../../engines/overall';
+import { displayOverall } from '../../engines/overall';
 import { fmtMoney } from '../../engines/util';
 import { clubLeague, divOf, tierLabel } from '../../engines/world';
 import { RoleBadge, SectionTitle, Stat, EmptyState } from '../ui';
@@ -29,12 +29,17 @@ export default function Contract() {
       {c.academy && (
         <section className="panel p-5 !bg-sun">
           <SectionTitle kicker="Academy" title={`${CLUB_MAP[c.academy.clubId].name} academy`} />
-          <p className="text-sm font-semibold">You are {p.age}. You stay here until a club signs you, you are promoted to the first team, or you turn 20 and must leave. From 16, offers can arrive in the July and January windows. Before that, bigger academies may scout you in the summer.</p>
+          <p className="text-sm font-semibold">You are {p.age}. You stay here until a club signs you, you are promoted to the first team, or you turn 20 and must leave. Offers arrive in the July–August and January windows (pro clubs from 16; bigger academies scout you before that). You can also ask your agent for a move where you would play more.</p>
           <div className="grid grid-cols-3 gap-2 mt-4">
             <Stat label="Coaching level" value={CLUB_MAP[c.academy.clubId].rating} />
-            <Stat label="Your OVR" value={playerOverall(p)} />
+            <Stat label="Your OVR" value={displayOverall(p)} />
             <Stat label="Must leave in" value={`${Math.max(0, 20 - p.age)} yr`} />
           </div>
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            <button className="btn-white btn-sm" disabled={!!canSeekMinutes(c)} title={canSeekMinutes(c) ?? ''} onClick={() => setMsg(act((x) => requestMinutes(x)))}>Find me more minutes</button>
+            <span className="text-[11px] font-semibold">{canSeekMinutes(c) ?? 'Your agent looks for academies or clubs where you would be a regular.'}</span>
+          </div>
+          {msg && <div className="mt-3 text-sm sticker-flat px-3 py-2 font-semibold">{msg}</div>}
         </section>
       )}
       {!c.academy && (
@@ -42,7 +47,7 @@ export default function Contract() {
         <SectionTitle kicker="Current deal" title={club ? club.name : 'Free agent'} right={ct?.parentClubId ? <span className="pill border-ink text-sky">On loan from {CLUB_MAP[ct.parentClubId].name}</span> : undefined} />
         {ct && club ? (
           <>
-            <div className="text-sm text-muted mb-4">{clubLeague(c, club.id)} ({tierLabel(divOf(c, club.id))}) · club rating <span className="stat-num text-ink">{club.rating}</span> · your OVR <span className="stat-num text-ink">{playerOverall(p)}</span></div>
+            <div className="text-sm text-muted mb-4">{clubLeague(c, club.id)} ({tierLabel(divOf(c, club.id))}) · club rating <span className="stat-num text-ink">{club.rating}</span> · your OVR <span className="stat-num text-ink">{displayOverall(p)}</span></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Stat label="Wage" value={fmtMoney(ct.wage)} sub="per year" />
               <Stat label="Contract" value={`${ct.yearsLeft} yr`} sub={`ends June ${c.year + ct.yearsLeft}`} />
@@ -51,6 +56,7 @@ export default function Contract() {
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
               <button className="btn-white btn-sm" disabled={p.transferListed} onClick={() => setMsg(act((x) => requestTransfer(x)))}>{p.transferListed ? 'On the transfer list' : 'Request a transfer'}</button>
+              <button className="btn-white btn-sm" disabled={!!canSeekMinutes(c)} title={canSeekMinutes(c) ?? ''} onClick={() => setMsg(act((x) => requestMinutes(x)))}>Find me more minutes</button>
               <button className="btn-white btn-sm" disabled={!!loanBlock} title={loanBlock ?? ''} onClick={() => setMsg(act((x) => requestLoan(x)))}>Ask for a loan</button>
             </div>
             <p className="text-[11px] text-muted mt-2">{loanBlock && window ? `Loan: ${loanBlock}` : 'Transfer requests hurt manager trust but bring more offers. Loans give young fringe players starter minutes.'}</p>
@@ -62,7 +68,7 @@ export default function Contract() {
 
       <section className="panel p-5">
         <SectionTitle kicker={window ? 'Transfer window open' : 'Transfer window closed'} title="Offers" />
-        {!window && c.offers.length === 0 && <p className="text-sm text-muted mb-2">Windows open in <b>July</b> (summer) and <b>January</b> (winter). Your form, rating and reputation decide who calls.</p>}
+        {!window && c.offers.length === 0 && <p className="text-sm text-muted mb-2">Windows are open in <b>July–August</b> (summer) and <b>January</b> (winter). Your form, rating and reputation decide who calls.</p>}
         <OffersList onMsg={setMsg} />
       </section>
     </div>

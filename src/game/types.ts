@@ -366,7 +366,7 @@ export interface Career {
   offers: Offer[];
   decisions: Decision[];
   notices: string[];            // what's happening this month
-  asked: { loan: boolean; transfer: boolean };
+  asked: { loan: boolean; transfer: boolean; minutes?: boolean };
   lastReport: MonthReport | null;
   history: SeasonSummary[];
   pastFixtures: Fixture[];      // last season only

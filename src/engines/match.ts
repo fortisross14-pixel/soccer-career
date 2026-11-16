@@ -4,7 +4,7 @@ import { realisticName } from '../data/names';
 import { STAFF_PERK } from './perks';
 import { balanceEffects } from '../data/training';
 import { effectiveSkills, matchOverall } from './overall';
-import { academyRating, teamCountry, teamName, teamRating } from './teams';
+import { academyRating, lineOffset, maturity, teamCountry, teamName, teamRating, type Line } from './teams';
 import { chance, clamp, noise, poisson, randInt, rng, round1, weightedPick } from './util';
 
 export const ROLE_LABEL: Record<SquadRole, string> = {
@@ -25,9 +25,9 @@ export function squadRole(ovr: number, teamR: number): SquadRole {
 /** squad standing at the current club, including manager trust */
 export function currentRole(c: Career): SquadRole {
   const p = c.player;
-  const teamR = c.academy ? academyRating(c.academy.clubId, p.age) : p.contract ? CLUB_MAP[p.contract.clubId].rating : null;
-  if (teamR === null) return 'reserve';
-  const base = squadRole(matchOverall(p), teamR);
+  const lv = squadLevels(c);
+  if (!lv) return 'reserve';
+  const base = squadRole(matchOverall(p), lv.lineInternal);
   const shift = p.trust >= 80 ? 1 : p.trust < 30 ? -1 : 0;
   const order: SquadRole[] = ['reserve', 'fringe', 'rotation', 'starter', 'star'];
   return order[clamp(ROLE_RANK[base] + shift, 0, 4)];
@@ -268,4 +268,27 @@ export function natRole(ovr: number, natR: number): SquadRole {
 
 export function describeOpp(fx: Fixture): string {
   return `${fx.home ? 'vs' : '@'} ${teamName(fx.oppId)}`;
+}
+
+const LINE_OF: Record<PositionKey, Line> = { GK: 'GK', CB: 'DEF', FB: 'DEF', CM: 'MID', B2B: 'MID', AM: 'MID', ST: 'FWD', W: 'FWD' };
+export const LINE_LABEL: Record<Line, string> = { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', FWD: 'Forwards' };
+
+/**
+ * What you compete against for a place. "internal" values are what selection uses;
+ * "shown" values are on the same scale as your displayed OVR.
+ */
+export function squadLevels(c: Career): { line: Line; teamShown: number; lineShown: number; meShown: number; lineInternal: number; youth: boolean } | null {
+  const p = c.player;
+  const line = LINE_OF[p.position];
+  if (c.academy) {
+    const m = maturity(p.age);
+    const team = academyRating(c.academy.clubId, p.age);
+    const lineI = team + lineOffset(c.academy.clubId, line);
+    // youth teammates are your age: compare everyone without the age factor
+    return { line, teamShown: Math.round(team / m), lineShown: Math.round(lineI / m), meShown: Math.round(matchOverall(p) / m), lineInternal: lineI, youth: true };
+  }
+  if (!p.contract) return null;
+  const club = CLUB_MAP[p.contract.clubId];
+  const lineI = club.rating + lineOffset(club.id, line);
+  return { line, teamShown: club.rating, lineShown: lineI, meShown: matchOverall(p), lineInternal: lineI, youth: false };
 }

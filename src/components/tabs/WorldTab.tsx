@@ -5,7 +5,7 @@ import { CLUB_MAP } from '../../data/clubs';
 import { POSITION_MAP } from '../../data/positions';
 import { allTime, ballonRace } from '../../engines/stars';
 import { leagueRepFor } from '../../engines/world';
-import { playerOverall } from '../../engines/overall';
+import { displayOverall, playerOverall } from '../../engines/overall';
 import { seasonLabel } from '../../engines/month';
 import { ordinal } from '../../engines/awards';
 import { clamp } from '../../engines/util';
@@ -100,7 +100,7 @@ export default function WorldTab() {
             <div className="space-y-1.5">
               {best.map((x, i) => <Row key={x.id} rank={i + 1} name={x.name} sub={`${POSITION_MAP[x.pos].short} · ${x.age} · ${CLUB_MAP[x.clubId]?.name} · ${x.country}${x.ballons ? ` · ${x.ballons}× Ballon` : ''}`} value={x.ovr} />)}
             </div>
-            <p className="text-[11px] text-muted font-semibold mt-3">Your overall: <span className="stat-num">{playerOverall(p)}</span></p>
+            <p className="text-[11px] text-muted font-semibold mt-3">Your overall: <span className="stat-num">{displayOverall(p)}</span></p>
           </section>
         )}
       </div>

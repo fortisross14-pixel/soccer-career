@@ -55,3 +55,12 @@ export function teamShort(id: string): string {
   if (words.length >= 2) return (words[0][0] + words[1][0] + (words[2]?.[0] ?? words[1][1] ?? '')).toUpperCase();
   return n.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
 }
+
+export type Line = 'GK' | 'DEF' | 'MID' | 'FWD';
+
+/** each club is a little stronger or weaker in each line (-2..+2), fixed per club */
+export function lineOffset(clubId: string, line: Line): number {
+  let h = 2166136261;
+  for (const ch of `${clubId}:${line}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return (Math.abs(h) % 5) - 2;
+}

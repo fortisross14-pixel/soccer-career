@@ -8,7 +8,7 @@ import { getCountry } from '../data/countries';
 import { CLUB_MAP } from '../data/clubs';
 import { allCaps, playerOverall } from './overall';
 import { addPack } from './cards';
-import { academyStartOffers, loanOffers, windowOffers } from './market';
+import { academyStartOffers, loanOffers, seekMinutes, windowOffers } from './market';
 import { currentRole, roleRank } from './match';
 import { isWindow } from './month';
 import { clamp, randInt, rng, rngState, seedRng, uid } from './util';
@@ -188,4 +188,22 @@ export function requestTransfer(c: Career): string {
     return `Transfer request submitted — ${more.length} new clubs called your agent. Manager trust −12.`;
   }
   return 'Transfer request submitted. Expect more offers when the window opens. Manager trust −12.';
+}
+
+export function canSeekMinutes(c: Career): string | null {
+  if (c.retired) return 'Career over.';
+  if (!isWindow(c.month)) return 'Only during a transfer window (July, August or January).';
+  if (!c.academy && !c.player.contract) return 'You are a free agent: pick one of your offers.';
+  if (c.asked.minutes) return 'Your agent already searched this window.';
+  return null;
+}
+
+export function requestMinutes(c: Career): string {
+  const why = canSeekMinutes(c);
+  if (why) return why;
+  c.asked.minutes = true;
+  const { offers, msg } = seekMinutes(c);
+  const have = new Set(c.offers.map((o) => o.clubId + o.kind));
+  c.offers.push(...offers.filter((o) => !have.has(o.clubId + o.kind)));
+  return msg;
 }

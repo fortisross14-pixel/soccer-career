@@ -1,5 +1,5 @@
 import type { Career, PositionKey } from './types';
-import { playerOverall } from '../engines/overall';
+import { displayOverall } from '../engines/overall';
 import { CLUB_MAP } from '../data/clubs';
 import { POSITION_MAP } from '../data/positions';
 import { playerGrade } from '../engines/awards';
@@ -43,7 +43,7 @@ export function slotMeta(slot: number): SaveMeta | null {
   const c = loadSlot(slot);
   if (!c) return null;
   const p = c.player;
-  return { slot, name: p.name, age: p.age, position: p.position, country: p.country, clubName: p.contract ? CLUB_MAP[p.contract.clubId]?.name ?? '—' : 'Free agent', overall: playerOverall(p), retired: c.retired, year: c.year };
+  return { slot, name: p.name, age: p.age, position: p.position, country: p.country, clubName: p.contract ? CLUB_MAP[p.contract.clubId]?.name ?? '—' : 'Free agent', overall: displayOverall(p), retired: c.retired, year: c.year };
 }
 
 export function allSlots(): (SaveMeta | null)[] { return Array.from({ length: NUM_SLOTS }, (_, i) => slotMeta(i + 1)); }

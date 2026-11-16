@@ -5,7 +5,7 @@ import { FOCUSES, balanceEffects, balanceLabel } from '../../data/training';
 import { POSITION_MAP } from '../../data/positions';
 import { CARD_MAP, RARITY_ORDER } from '../../data/cards';
 import { setPlan } from '../../engines/career';
-import { currentRole, injuryRisk } from '../../engines/match';
+import { currentRole, injuryRisk, squadLevels, LINE_LABEL } from '../../engines/match';
 import { cardBlocker, playCard, playsPerMonth } from '../../engines/cards';
 import { scorerTable, sortedTable, tablePosition } from '../../engines/calendar';
 import { teamName } from '../../engines/teams';
@@ -92,6 +92,8 @@ export default function Hub({ goTo }: { goTo: (t: TabId) => void }) {
       </div>
 
       <div className="space-y-6">
+        <SquadPanel />
+
         <section className="panel p-5">
           <SectionTitle title="Condition" right={role ? <RoleBadge role={role} /> : undefined} />
           {injured && <div className="mb-3 sticker-flat !bg-red text-white px-3 py-2 text-sm font-bold">🚑 {p.injury!.name}. Back around {fmtDay(p.injury!.untilDay, c.year)}</div>}
@@ -241,5 +243,31 @@ function MiniTable() {
         </div>
       ))}
     </div>
+  );
+}
+
+function SquadPanel() {
+  const { career } = useGame();
+  const c = career!;
+  const lv = squadLevels(c);
+  if (!lv) return null;
+  const diff = lv.meShown - lv.lineShown;
+  const verdict = diff >= 5 ? ['First choice. You play even in training-focused months.', '!bg-[#3fcf7f]']
+    : diff >= -1 ? ['In the mix. Form, trust and match-day focus decide who starts.', '!bg-sun']
+    : diff >= -6 ? ['Rotation. Expect bench time unless you are in form.', '!bg-[#ffa53f]']
+    : diff >= -12 ? ['Fringe. Mostly bench, some cup games.', '!bg-[#ffb3b8]']
+    : ['Out of your depth here. Consider a move where you would play.', '!bg-[#ffb3b8]'];
+  const teen = !lv.youth && c.player.age < 21;
+  return (
+    <section className="panel p-5">
+      <SectionTitle title="Squad level" kicker={lv.youth ? 'Academy · same-age players' : 'First team'} />
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Team avg" value={lv.teamShown} />
+        <Stat label={LINE_LABEL[lv.line]} value={lv.lineShown} sub="your rivals" />
+        <Stat label={teen ? 'You (match)' : 'You'} value={lv.meShown} sub={`${diff >= 0 ? '+' : ''}${diff} vs line`} tone={diff >= -1 ? 'sun' : undefined} />
+      </div>
+      <div className={`sticker-flat mt-3 px-3 py-2 text-sm font-bold ${verdict[1]}`}>{verdict[0]}</div>
+      {teen && <p className="text-[11px] text-muted font-semibold mt-2">Among adults your match level is a little below your OVR until you are 21 (physical maturity).</p>}
+    </section>
   );
 }

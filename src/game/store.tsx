@@ -111,7 +111,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (canPlay(c)) break;
       const r = enginePlayMonth(c);
       list.push(r);
-      if (c.retired || c.decisions.length || r.seasonEnd || (isWindow(c.month) && (!c.academy || c.offers.length > 0)) || (!c.academy && packsAtStart < 6 && c.packs.length >= 6)) break;
+      if (c.retired || c.decisions.length || r.seasonEnd || (isWindow(c.month) && ((!c.academy && c.month !== 1) || c.offers.length > 0)) || (!c.academy && packsAtStart < 6 && c.packs.length >= 6)) break;
     }
     c.rng = rngState();
     // coins earned while playing are shown inside the month report instead of as toasts

@@ -2,7 +2,7 @@ import { useGame } from '../../game/store';
 import { CATEGORY_ORDER, SKILLS } from '../../data/skills';
 import { POSITION_MAP } from '../../data/positions';
 import { TRAIT_MAP } from '../../data/traits';
-import { playerOverall, potentialOverall, skillCap } from '../../engines/overall';
+import { displayOverall, potentialOverall, skillCap } from '../../engines/overall';
 import { SectionTitle, Stat, SubTabs } from '../ui';
 import { useState } from 'react';
 import PlayerStats from './PlayerStats';
@@ -14,7 +14,7 @@ function SkillsView() {
   const c = career;
   const p = c.player;
   const pos = POSITION_MAP[p.position];
-  const ovr = playerOverall(p);
+  const ovr = displayOverall(p);
   const pot = potentialOverall(p);
   const lastDeltas = c.lastReport?.skillDeltas ?? {};
   const phase = p.age < p.peakStart ? 'Developing' : p.age <= p.peakEnd ? 'Prime' : 'Declining';

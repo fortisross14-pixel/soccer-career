@@ -5,7 +5,7 @@ import { realisticName } from '../data/names';
 import { CONTINENTAL_CLUB, CONTINENTAL_NATIONS } from '../data/tournaments';
 import { pick, shuffle, uid, poisson, clamp, chance, noise, rng } from './util';
 import { teamRating, teamName, academyId, youthLabel } from './teams';
-import { playerOverall } from './overall';
+import { displayOverall } from './overall';
 import { divOf, leagueClubs, leagueRepFor } from './world';
 import { contRaces, cupRaces, leagueRaces } from './races';
 
@@ -213,7 +213,7 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
     contScorers: contKey === 'none' ? [] : contRivals(career, club.country, contKey),
     honors: [],
     awards: [],
-    ovrStart: playerOverall(career.player),
+    ovrStart: displayOverall(career.player),
     clubsThisSeason: [club.name],
     ended: false,
   };
@@ -284,7 +284,7 @@ export function buildYouthSeason(career: Career, clubId: string, fromDay = 0): S
   const ys: SeasonState = {
     year: career.year, clubId: usId, clubName: teamName(usId), country: club.country, leagueName, division: 3,
     table, rounds, roundsPlayed, fixtures, cupAlive: false, contKey: 'none', contName: '', contAlive: false,
-    stats: emptyStats(), scorers: [], honors: [], awards: [], ovrStart: playerOverall(career.player),
+    stats: emptyStats(), scorers: [], honors: [], awards: [], ovrStart: displayOverall(career.player),
     clubsThisSeason: [teamName(usId)], ended: false, youth: true,
   };
   ys.races = leagueRaces(career, ys, ids, 60);

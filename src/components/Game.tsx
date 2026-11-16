@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useGame } from '../game/store';
 import { CLUB_MAP } from '../data/clubs';
 import { POSITION_MAP } from '../data/positions';
-import { playerOverall, potentialOverall } from '../engines/overall';
+import { displayOverall, potentialOverall } from '../engines/overall';
 import { canPlay, seasonLabel } from '../engines/month';
 import { MONTHS_LONG, calYear, fmtMoney } from '../engines/util';
 import Hub from './tabs/Hub';
@@ -37,7 +37,7 @@ export default function Game() {
   if (!career) return null;
   const c = career;
   const p = c.player;
-  const ovr = playerOverall(p);
+  const ovr = displayOverall(p);
   const pot = potentialOverall(p);
   const club = p.contract ? CLUB_MAP[p.contract.clubId] : null;
   const blocker = canPlay(c);

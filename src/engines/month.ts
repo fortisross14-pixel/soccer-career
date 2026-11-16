@@ -7,7 +7,7 @@ import { buildYouthSeason, scorerTable, CONT_KO, CUP_ROUNDS, applyToTable, contK
 import { simulateMatch, roleRank } from './match';
 import { monthlyGrowth } from './growth';
 import { addPack } from './cards';
-import { playerOverall } from './overall';
+import { displayOverall, playerOverall } from './overall';
 import { STAFF_PERK, staffMonthlyCost } from './perks';
 import { windowOffers, renewalOffer, academyWindowOffers } from './market';
 import { nationalCallUp, setupTournament, afterTournamentMatch } from './national';
@@ -17,7 +17,8 @@ import { aggregate } from './statline';
 import { rollDecision, retirementDecision } from './decisions';
 import { chance, clamp, noise, randInt, MONTHS_LONG, calYear } from './util';
 
-export const isWindow = (m: number) => m === 0 || m === 6;
+/** transfer windows: July and August (summer), January (winter) */
+export const isWindow = (m: number) => m === 0 || m === 1 || m === 6;
 
 export function canPlay(c: Career): string | null {
   if (c.retired) return 'Career over.';
@@ -37,7 +38,9 @@ export function beginMonth(c: Career) {
   const p = c.player;
   c.notices = [];
 
-  if (isWindow(c.month)) {
+  if (c.month === 1) {
+    notes.push('🔁 Last month of the summer window. Offers still open, or ask your agent for a move.');
+  } else if (isWindow(c.month)) {
     c.asked = { loan: false, transfer: false };
     const winter = c.month === 6;
     const offers = c.academy ? academyWindowOffers(c) : windowOffers(c, winter);
@@ -58,7 +61,7 @@ export function beginMonth(c: Career) {
         notes.push('😠 You were promised regular football and it has not happened. Morale −10.');
       }
     }
-  } else if (c.month === 1 || c.month === 7) {
+  } else if (c.month === 2 || c.month === 7) {
     c.offers = c.offers.filter((o) => o.kind === 'first');
   }
 
@@ -218,7 +221,7 @@ export function playMonth(c: Career): MonthReport {
   const s = c.season!;
   const start = c.month * 30;
   const end = start + 30;
-  const ovrBefore = playerOverall(p);
+  const ovrBefore = displayOverall(p);
   const news: string[] = [...c.notices];
   const played: string[] = [];
   const packsBefore = new Set(c.packs.map((x) => x.uid));
@@ -304,9 +307,9 @@ export function playMonth(c: Career): MonthReport {
 
   // ---- end of season pieces ----
   if (c.month === 10) news.push(...endLeagueSeason(c));
-  const ovrAfter = playerOverall(p);
-  c.peakOvr = Math.max(c.peakOvr, ovrAfter);
-  volumeMilestones(c, ovrAfter);
+  const ovrAfter = displayOverall(p);
+  c.peakOvr = Math.max(c.peakOvr, playerOverall(p));
+  volumeMilestones(c, playerOverall(p));
   c.cardsThisMonth = 0;
 
   const packs = c.packs.filter((x) => !packsBefore.has(x.uid));
@@ -334,7 +337,7 @@ function rollover(c: Career, news: string[]): SeasonSummary {
     goals: st.goals - st.intlGoals, assists: st.assists - st.intlAssists,
     avgRating: st.rated ? Math.round((st.ratingSum / st.rated) * 100) / 100 : 0, motm: st.motm,
     caps: st.intlCaps, intlGoals: st.intlGoals, honors: [...s.honors], awards: [...s.awards],
-    ovrStart: s.ovrStart, ovrEnd: playerOverall(p),
+    ovrStart: s.ovrStart, ovrEnd: displayOverall(p),
   };
   summary.division = s.division;
   summary.stats = aggregate(s.fixtures.filter((f) => f.comp !== 'national'));
