@@ -271,7 +271,7 @@ function SquadPanel() {
       {lv.youth && (() => {
         const b = youthBand(c.player.age);
         const pos = c.player.age === b.min ? 'one of the youngest' : c.player.age === b.max || (b.label === 'U20' && c.player.age === 19) ? 'one of the oldest' : 'in the middle';
-        return <p className="text-[11px] text-muted font-semibold mt-2">{b.label} group (ages {b.min}–{b.max}): at {c.player.age} you are {pos}. Rivals are shown on your scale, so older teammates look stronger. The gap closes every birthday, until you move up a group.</p>;
+        return <p className="text-[11px] text-muted font-semibold mt-2">{b.label} group (ages {b.min}–{b.max}): at {c.player.age} you are {pos}. Older groups are stronger, and teammates average about {b.peerAge} years old, so you have the edge when you are one of the oldest in your group.</p>;
       })()}
     </section>
   );

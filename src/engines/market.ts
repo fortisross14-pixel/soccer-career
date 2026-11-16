@@ -4,7 +4,7 @@ import { getCountry } from '../data/countries';
 import { buildSeason, buildYouthSeason } from './calendar';
 import { academyRating } from './teams';
 import { currentRole, roleRank, squadRole, ROLE_LABEL } from './match';
-import { playerOverall, potentialOverall } from './overall';
+import { displayOverall, playerOverall, potentialOverall } from './overall';
 import { STAFF_PERK } from './perks';
 import { divOf, leagueClubs } from './world';
 import { maxDivision } from '../data/countries';
@@ -233,19 +233,19 @@ export function acceptOffer(c: Career, offerUid: string): string {
 // ---------------- academy (ages 11-19) ----------------
 
 function academyOffer(c: Career, club: ClubDef, note: string): Offer {
-  const role = squadRole(playerOverall(c.player), academyRating(club.id, c.player.age));
+  const role = squadRole(displayOverall(c.player), academyRating(club.id, c.player.age));
   return { uid: uid('of'), kind: 'academy', clubId: club.id, wage: 0, years: Math.max(1, 20 - c.player.age), role, pushes: 0, final: true, note };
 }
 
 /** the three academies that want an 11-year-old, matched to prospect quality */
 export function academyStartOffers(c: Career): Offer[] {
   const p = c.player;
-  const ovr = playerOverall(p);
+  const ovr = displayOverall(p);
   const home = CLUBS.filter((cl) => cl.country === p.country);
   const by = (target: number, exclude: string[]) => [...home].filter((cl) => !exclude.includes(cl.id)).sort((a, b) => Math.abs(academyRating(a.id, p.age) - target) - Math.abs(academyRating(b.id, p.age) - target))[0];
-  const a = by(ovr + 1, []);
-  const b = by(ovr + 4, [a.id]);
-  const cc = by(ovr + 8, [a.id, b.id]);
+  const a = by(ovr - 4, []);
+  const b = by(ovr, [a.id]);
+  const cc = by(ovr + 4, [a.id, b.id]);
   const offers = [academyOffer(c, a, 'Local academy · lots of minutes'), academyOffer(c, b, 'Regional academy'), academyOffer(c, cc, 'Ambitious academy · fight for a place')];
   if (p.stars >= 5) {
     const giant = [...home].sort((x, y) => y.rating - x.rating)[Math.floor(rng() * 3)];
@@ -263,8 +263,9 @@ export function academyWindowOffers(c: Career): Offer[] {
   const out: Offer[] = [];
   if (p.age < 16) {
     // outgrowing your academy: bigger academies come knocking
-    if (ovr >= academyRating(parent.id, p.age) + 3 && c.month === 0) {
-      const pool = CLUBS.filter((cl) => cl.country === p.country && cl.rating > parent.rating && Math.abs(academyRating(cl.id, p.age) - (ovr + 2)) <= 4);
+    const yo = displayOverall(p);
+    if (yo >= academyRating(parent.id, p.age) + 3 && c.month === 0) {
+      const pool = CLUBS.filter((cl) => cl.country === p.country && cl.rating > parent.rating && Math.abs(academyRating(cl.id, p.age) - (yo + 2)) <= 4);
       shuffle(pool).slice(0, randInt(1, 2)).forEach((cl) => out.push(academyOffer(c, cl, 'Bigger academy scouted you')));
     }
     return out;
@@ -295,7 +296,7 @@ export function seekMinutes(c: Career): { offers: Offer[]; msg: string } {
   const home = CLUBS.filter((cl) => cl.country === p.country && cl.id !== currentId);
   if (c.academy && p.age < 19) {
     // academies where you'd be a regular
-    const fits = home.filter((cl) => roleRank(squadRole(ovr, academyRating(cl.id, p.age))) >= 3);
+    const fits = home.filter((cl) => roleRank(squadRole(displayOverall(p), academyRating(cl.id, p.age))) >= 3);
     const pickA = shuffle(fits).sort((a, b) => b.rating - a.rating).slice(0, 4);
     shuffle(pickA).slice(0, randInt(1, 2)).forEach((cl) => out.push(academyOffer(c, cl, 'Academy where you would play')));
   }

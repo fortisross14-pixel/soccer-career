@@ -3,8 +3,8 @@ import { CLUB_MAP } from '../data/clubs';
 import { realisticName } from '../data/names';
 import { STAFF_PERK } from './perks';
 import { balanceEffects } from '../data/training';
-import { effectiveSkills, matchOverall } from './overall';
-import { academyRating, lineOffset, maturity, teamCountry, teamName, teamRating, type Line } from './teams';
+import { effectiveSkills, matchOverall, overallOf } from './overall';
+import { academyRating, lineOffset, teamCountry, teamName, teamRating, type Line } from './teams';
 import { chance, clamp, noise, poisson, randInt, rng, round1, weightedPick } from './util';
 
 export const ROLE_LABEL: Record<SquadRole, string> = {
@@ -27,7 +27,7 @@ export function currentRole(c: Career): SquadRole {
   const p = c.player;
   const lv = squadLevels(c);
   if (!lv) return 'reserve';
-  const base = squadRole(matchOverall(p), lv.lineInternal);
+  const base = squadRole(lv.meShown, lv.lineInternal);
   const shift = p.trust >= 80 ? 1 : p.trust < 30 ? -1 : 0;
   const order: SquadRole[] = ['reserve', 'fringe', 'rotation', 'starter', 'star'];
   return order[clamp(ROLE_RANK[base] + shift, 0, 4)];
@@ -106,7 +106,7 @@ export interface MatchOutcome { usGoals: number; oppGoals: number; report: Match
 export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
   const p = c.player;
   const s = effectiveSkills(p);
-  const ovr = matchOverall(p);
+  const ovr = fx.usId.startsWith('acad:') ? youthMatchOverall(p) : matchOverall(p);
   const usR = teamRating(fx.usId);
   const oppR = teamRating(fx.oppId);
   const events: MatchEvent[] = [];
@@ -281,14 +281,18 @@ export function squadLevels(c: Career): { line: Line; teamShown: number; lineSho
   const p = c.player;
   const line = LINE_OF[p.position];
   if (c.academy) {
-    const m = maturity(p.age);
+    // youth football is compared on the plain skill scale (the one your OVR shows)
     const team = academyRating(c.academy.clubId, p.age);
     const lineI = team + lineOffset(c.academy.clubId, line);
-    // youth teammates are your age: compare everyone without the age factor
-    return { line, teamShown: Math.round(team / m), lineShown: Math.round(lineI / m), meShown: Math.round(matchOverall(p) / m), lineInternal: lineI, youth: true };
+    return { line, teamShown: team, lineShown: lineI, meShown: youthMatchOverall(p), lineInternal: lineI, youth: true };
   }
   if (!p.contract) return null;
   const club = CLUB_MAP[p.contract.clubId];
   const lineI = club.rating + lineOffset(club.id, line);
   return { line, teamShown: club.rating, lineShown: lineI, meShown: matchOverall(p), lineInternal: lineI, youth: false };
+}
+
+/** youth matches: plain skills (with boosts), no adult maturity factor */
+export function youthMatchOverall(p: Player): number {
+  return overallOf(effectiveSkills(p), p.position, 21);
 }

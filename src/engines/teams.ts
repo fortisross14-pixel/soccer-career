@@ -29,14 +29,25 @@ export function youthLabel(age: number): string {
   return youthBand(age).label;
 }
 
+/** how developed a typical prospect is at an age, as a share of their potential (measured in the sim) */
+const DEV: Record<number, number> = { 11: 0.62, 12: 0.7, 13: 0.77, 14: 0.82, 15: 0.86, 16: 0.9, 17: 0.92, 18: 0.95, 19: 0.96, 20: 0.97 };
+export function devFrac(age: number): number {
+  if (age >= 21) return 1;
+  if (age <= 11) return DEV[11];
+  const lo = Math.floor(age);
+  const f = age - lo;
+  return DEV[lo] + ((DEV[lo + 1] ?? 1) - DEV[lo]) * f;
+}
+
 /**
- * Strength of a club's youth side, on the senior scale. Teammates are the
- * typical age of the group, so the youngest in a group compete against
- * older, more developed players and the oldest have the edge.
+ * Average level of a club's youth side, on the same scale as your OVR.
+ * Older groups are stronger (U14 < U17 < U20). Teammates are the typical
+ * age of the group, so the youngest in a group face more developed players
+ * and the oldest have the edge.
  */
 export function academyRating(clubId: string, age: number): number {
   const parent = CLUB_MAP[clubId]?.rating ?? 60;
-  return Math.round((parent - 12) * maturity(youthBand(age).peerAge));
+  return Math.round((parent - 9) * devFrac(youthBand(age).peerAge));
 }
 
 /** Teams are clubs (by id), national sides ("nat:Spain") or youth sides ("acad:…"). */
