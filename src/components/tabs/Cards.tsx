@@ -62,6 +62,11 @@ export default function Cards() {
         )}
       </section>
 
+      <div className="sticker-flat px-3 py-2 text-sm font-bold flex flex-wrap gap-2 items-center">
+        Card quality unlocked: <span className="tag tag-sun">{c.mods.maxRarity ?? 'legendary'}</span>
+        <span className="text-xs text-muted font-semibold">Better cards unlock as you complete careers: rare after 1, epic after 3, legendary after 6. Higher rarities in packs drop to your cap.</span>
+      </div>
+
       <section className="panel p-5">
         <SectionTitle kicker={`${c.cards.length} / ${handLimit(c)} · ${Math.max(0, playsPerMonth(c) - c.cardsThisMonth)} plays left this month`} title="Your hand" />
         <div className="flex flex-wrap gap-1.5 mb-4">

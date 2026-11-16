@@ -1,6 +1,6 @@
 import type { CoinEvent } from './types';
 import { CRATES, DUPLICATE_REFUND, TRINKETS, TRINKET_RARITIES, UPGRADE_MAP, trinketSlots, type TrinketRarity } from '../data/legacy';
-import type { CareerSetup } from '../engines/career';
+import { cardTierFor, type CareerSetup } from '../engines/career';
 
 // Profile-wide progression that survives between careers.
 const META_KEY = 'xi2_meta';
@@ -13,9 +13,10 @@ export interface Meta {
   equipped: string[];    // slotted for the next career
   milestones: Record<string, number>; // times achieved across all careers
   careers: number;
+  completed: number;     // careers played through to retirement
 }
 
-const EMPTY: Meta = { coins: 0, lifetime: 0, upgrades: {}, trinkets: [], equipped: [], milestones: {}, careers: 0 };
+const EMPTY: Meta = { coins: 0, lifetime: 0, upgrades: {}, trinkets: [], equipped: [], milestones: {}, careers: 0, completed: 0 };
 
 export function loadMeta(): Meta {
   try {
@@ -92,6 +93,10 @@ export function toggleEquip(m: Meta, id: string): Meta {
 export function startRun(m: Meta): { meta: Meta; setup: CareerSetup } {
   return {
     meta: { ...m, careers: m.careers + 1 },
-    setup: { upgrades: { ...m.upgrades }, relics: m.equipped.slice(0, trinketSlots(m.upgrades)) },
+    setup: { upgrades: { ...m.upgrades }, relics: m.equipped.slice(0, trinketSlots(m.upgrades)), cardTier: cardTierFor(m.completed) },
   };
+}
+
+export function completeCareer(m: Meta): Meta {
+  return { ...m, completed: (m.completed ?? 0) + 1 };
 }

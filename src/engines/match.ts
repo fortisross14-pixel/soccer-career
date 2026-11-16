@@ -4,7 +4,7 @@ import { realisticName } from '../data/names';
 import { STAFF_PERK } from './perks';
 import { balanceEffects } from '../data/training';
 import { effectiveSkills, matchOverall } from './overall';
-import { teamName, teamRating } from './teams';
+import { academyRating, teamCountry, teamName, teamRating } from './teams';
 import { chance, clamp, noise, poisson, randInt, rng, round1, weightedPick } from './util';
 
 export const ROLE_LABEL: Record<SquadRole, string> = {
@@ -25,8 +25,9 @@ export function squadRole(ovr: number, teamR: number): SquadRole {
 /** squad standing at the current club, including manager trust */
 export function currentRole(c: Career): SquadRole {
   const p = c.player;
-  if (!p.contract) return 'reserve';
-  const base = squadRole(matchOverall(p), CLUB_MAP[p.contract.clubId].rating);
+  const teamR = c.academy ? academyRating(c.academy.clubId, p.age) : p.contract ? CLUB_MAP[p.contract.clubId].rating : null;
+  if (teamR === null) return 'reserve';
+  const base = squadRole(matchOverall(p), teamR);
   const shift = p.trust >= 80 ? 1 : p.trust < 30 ? -1 : 0;
   const order: SquadRole[] = ['reserve', 'fringe', 'rotation', 'starter', 'star'];
   return order[clamp(ROLE_RANK[base] + shift, 0, 4)];
@@ -158,8 +159,8 @@ export function simulateMatch(c: Career, fx: Fixture): MatchOutcome {
   const usGoalsN = poisson(lUs);
   const oppGoalsN = poisson(lOpp);
 
-  const usCountry = fx.usId.startsWith('nat:') ? fx.usId.slice(4) : CLUB_MAP[fx.usId]?.country ?? p.country;
-  const oppCountry = fx.oppId.startsWith('nat:') ? fx.oppId.slice(4) : CLUB_MAP[fx.oppId]?.country ?? 'England';
+  const usCountry = teamCountry(fx.usId) ?? p.country;
+  const oppCountry = teamCountry(fx.oppId) ?? p.country;
 
   // ---------- goals & involvement ----------
   const q = clamp(atk / Math.max(55, usR), 0.6, 1.35);

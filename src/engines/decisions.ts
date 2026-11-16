@@ -201,7 +201,7 @@ const TEMPLATES: Template[] = [
 ];
 
 export function rollDecision(c: Career): Decision | null {
-  if (!c.player.contract || !chance(0.42)) return null;
+  if ((!c.player.contract && !c.academy) || !chance(c.academy ? 0.25 : 0.42)) return null;
   const pool = TEMPLATES.filter((t) => t.when(c));
   if (!pool.length) return null;
   const t = weightedPick(pool, (x) => x.weight);

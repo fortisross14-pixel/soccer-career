@@ -4,7 +4,7 @@ import { COUNTRIES, getCountry, leagueNameFor } from '../data/countries';
 import { realisticName } from '../data/names';
 import { CONTINENTAL_CLUB, CONTINENTAL_NATIONS } from '../data/tournaments';
 import { pick, shuffle, uid, poisson, clamp, chance, noise, rng } from './util';
-import { teamRating } from './teams';
+import { teamRating, teamName, academyId, youthLabel } from './teams';
 import { playerOverall } from './overall';
 import { divOf, leagueClubs, leagueRepFor } from './world';
 
@@ -31,7 +31,7 @@ export function emptyStats(): SeasonStats {
 }
 
 /** circle-method double round robin */
-function roundRobin(ids: string[]): [string, string][][] {
+function roundRobin(ids: string[], forceCycles?: number): [string, string][][] {
   const teams = [...ids];
   if (teams.length % 2 === 1) teams.push('BYE');
   const n = teams.length;
@@ -49,7 +49,7 @@ function roundRobin(ids: string[]): [string, string][][] {
   }
   const flipped = first.map((round) => round.map(([h, a]) => [a, h] as [string, string]));
   // small leagues meet more often so every league has ~30-34 matchdays
-  const cycles = clamp(Math.round(33 / (n - 1)), 2, 6);
+  const cycles = forceCycles ?? clamp(Math.round(33 / (n - 1)), 2, 6);
   const out: [string, string][][] = [];
   for (let c = 0; c < cycles; c++) out.push(...(c % 2 === 0 ? first : flipped));
   return out;
@@ -238,4 +238,40 @@ export function scorerTable(s: SeasonState, playerName: string): { rows: ScorerR
   rows.push({ name: playerName, clubId: s.clubId, goals: s.stats.leagueGoals, me: true });
   rows.sort((a, b) => b.goals - a.goals || (a.me ? -1 : b.me ? 1 : 0));
   return { rows, myRank: rows.findIndex((r) => r.me) + 1 };
+}
+
+/** A youth-league season for the player's academy side (ages 11-19). */
+export function buildYouthSeason(career: Career, clubId: string, fromDay = 0): SeasonState {
+  const club = CLUB_MAP[clubId];
+  const age = career.player.age;
+  const others = CLUBS.filter((x) => x.country === club.country && x.id !== clubId)
+    .sort((a, b) => Math.abs(a.rating - club.rating) - Math.abs(b.rating - club.rating))
+    .slice(0, 9);
+  const usId = academyId(clubId, age);
+  const ids = [usId, ...others.map((o) => academyId(o.id, age))];
+  const rr = roundRobin(shuffle(ids), 2);
+  const span = LEAGUE_END - LEAGUE_START;
+  const rounds = rr.map((pairs, i) => ({ day: Math.round(LEAGUE_START + (span * i) / Math.max(1, rr.length - 1)), pairs }));
+  const table: TableRow[] = ids.map((id) => ({ clubId: id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] }));
+  let roundsPlayed = 0;
+  for (const r of rounds) {
+    if (r.day >= fromDay) break;
+    for (const [h, a] of r.pairs) { const [hg, ag] = quickResult(h, a); applyToTable(table, h, a, hg, ag); }
+    roundsPlayed++;
+  }
+  const leagueName = `${youthLabel(age)} Youth League`;
+  const fixtures: Fixture[] = [];
+  rounds.forEach((r, i) => {
+    if (r.day < fromDay) return;
+    const pair = r.pairs.find(([h, a]) => h === usId || a === usId);
+    if (!pair) return;
+    const home = pair[0] === usId;
+    fixtures.push(makeFixture({ day: r.day, comp: 'league', compName: leagueName, stage: `Round ${i + 1}`, usId, oppId: home ? pair[1] : pair[0], home }));
+  });
+  return {
+    year: career.year, clubId: usId, clubName: teamName(usId), country: club.country, leagueName, division: 3,
+    table, rounds, roundsPlayed, fixtures, cupAlive: false, contKey: 'none', contName: '', contAlive: false,
+    stats: emptyStats(), scorers: [], honors: [], awards: [], ovrStart: playerOverall(career.player),
+    clubsThisSeason: [teamName(usId)], ended: false, youth: true,
+  };
 }

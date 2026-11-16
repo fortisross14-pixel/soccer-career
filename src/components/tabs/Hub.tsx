@@ -43,9 +43,12 @@ export default function Hub({ goTo }: { goTo: (t: TabId) => void }) {
               {c.notices.map((n, i) => <li key={i} className={`sticker-flat text-sm font-semibold px-3 py-2 ${i % 2 ? 'rotate-[.3deg]' : '-rotate-[.3deg]'}`}>{n}</li>)}
             </ul>
           )}
-          {!p.contract && !c.retired ? (
+          {c.academy && !c.retired && (
+            <div className="sticker-flat !bg-sun px-3 py-2 mb-3 text-sm font-bold">🎓 Academy player, age {p.age}. You leave when a club signs you, you are promoted, or you turn 20 ({Math.max(0, 20 - p.age)} yr left).</div>
+          )}
+          {!p.contract && !c.academy && !c.retired ? (
             <div>
-              <div className="text-sm font-semibold text-muted mb-3">Pick a club to start your season. Minutes drive your growth, form and market value.</div>
+              <div className="text-sm font-semibold text-muted mb-3">{p.age < 17 ? 'Pick your academy. Better academies coach better, but you will play less if you are not good enough.' : 'Pick a club to start your season. Minutes drive your growth, form and market value.'}</div>
               <OffersList />
             </div>
           ) : upcoming.length === 0 ? (

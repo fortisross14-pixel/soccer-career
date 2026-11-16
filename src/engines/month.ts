@@ -3,13 +3,13 @@ import { CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
 import { balanceEffects } from '../data/training';
 import { earn, milestone, volumeMilestones, PER_EVENT } from './coins';
-import { scorerTable, CONT_KO, CUP_ROUNDS, applyToTable, contKnockoutOpponent, cupOpponent, makeFixture, quickResult, tablePosition, buildSeason } from './calendar';
+import { buildYouthSeason, scorerTable, CONT_KO, CUP_ROUNDS, applyToTable, contKnockoutOpponent, cupOpponent, makeFixture, quickResult, tablePosition, buildSeason } from './calendar';
 import { simulateMatch, roleRank } from './match';
 import { monthlyGrowth } from './growth';
 import { addPack } from './cards';
 import { playerOverall } from './overall';
 import { STAFF_PERK, staffMonthlyCost } from './perks';
-import { windowOffers, renewalOffer } from './market';
+import { windowOffers, renewalOffer, academyWindowOffers } from './market';
 import { nationalCallUp, setupTournament, afterTournamentMatch } from './national';
 import { endLeagueSeason, ballonDor, gainReputation, computeLegacy, ordinal } from './awards';
 import { rollDecision, retirementDecision } from './decisions';
@@ -20,7 +20,7 @@ export const isWindow = (m: number) => m === 0 || m === 6;
 export function canPlay(c: Career): string | null {
   if (c.retired) return 'Career over.';
   if (c.decisions.length) return 'Make your decision first.';
-  if (!c.player.contract) return 'You need a club. Pick an offer.';
+  if (!c.player.contract && !c.academy) return c.player.age < 17 ? 'Pick an academy to join.' : 'You need a club. Pick an offer.';
   return null;
 }
 
@@ -38,10 +38,13 @@ export function beginMonth(c: Career) {
   if (isWindow(c.month)) {
     c.asked = { loan: false, transfer: false };
     const winter = c.month === 6;
-    const offers = windowOffers(c, winter);
-    const renewal = renewalOffer(c);
+    const offers = c.academy ? academyWindowOffers(c) : windowOffers(c, winter);
+    const renewal = c.academy ? null : renewalOffer(c);
     c.offers = [...(renewal ? [renewal] : []), ...offers];
-    notes.push(`🔁 The ${winter ? 'January' : 'summer'} transfer window is open — ${c.offers.length} offer${c.offers.length === 1 ? '' : 's'} on the table.`);
+    if (c.academy) {
+      if (c.offers.length) notes.push(`🔁 ${c.offers.length} club${c.offers.length === 1 ? '' : 's'} want${c.offers.length === 1 ? 's' : ''} you. See Contract.`);
+      else if (p.age >= 16) notes.push('No offers yet. Keep developing in the academy. You must leave by age 20.');
+    } else notes.push(`🔁 The ${winter ? 'January' : 'summer'} transfer window is open — ${c.offers.length} offer${c.offers.length === 1 ? '' : 's'} on the table.`);
     if (p.contract && !p.contract.parentClubId && p.contract.yearsLeft <= 1 && !renewal) notes.push(`⚠️ ${CLUB_MAP[p.contract.clubId].name} have not offered you a new deal. Your contract ends in June.`);
     if (!p.contract) notes.push('You are a free agent. Sign with a club to start the season.');
     // broken promises
@@ -80,6 +83,14 @@ function recordMatch(c: Career, fx: Fixture) {
   const st = s.stats;
   const t = c.totals;
   if (r.minutes <= 0) return;
+  if (s.youth) {
+    s.stats.apps++; s.stats.minutes += r.minutes; s.stats.goals += r.goals; s.stats.assists += r.assists;
+    s.stats.leagueApps++; s.stats.leagueGoals += r.goals; s.stats.leagueAssists += r.assists;
+    if (r.involvement === 'started') s.stats.starts++;
+    if (r.rating !== null) { s.stats.ratingSum += r.rating; s.stats.rated++; s.stats.leagueRatingSum += r.rating; s.stats.leagueRated++; }
+    if (r.motm) s.stats.motm++;
+    return;
+  }
   const defensive = ['GK', 'CB', 'FB'].includes(c.player.position);
   milestone(c, fx.comp === 'national' ? 'cap1' : 'debut');
   if (r.involvement === 'started') milestone(c, 'start11');
@@ -254,7 +265,7 @@ export function playMonth(c: Career): MonthReport {
   const cleanSheets = mine.filter((f) => f.report!.minutes >= 60 && f.oppGoals === 0).length;
 
   // ---- rewards ----
-  if (c.month >= 1 && c.month <= 10) addPack(c, 'bronze', `${MONTHS_LONG[c.month]} training`);
+  if (c.month >= 1 && c.month <= 10 && (!c.academy || c.month % 3 === 0)) addPack(c, 'bronze', c.academy ? 'Academy training block' : `${MONTHS_LONG[c.month]} training`);
   if (motms > 0) addPack(c, 'bronze', motms > 1 ? `${motms}× Man of the Match` : 'Man of the Match');
   const defensive = p.position === 'GK' || p.position === 'CB' || p.position === 'FB';
   if (ga >= 4 || (defensive && cleanSheets >= 3)) addPack(c, 'silver', `Big month: ${defensive && ga < 4 ? `${cleanSheets} clean sheets` : `${ga} goal involvements`}`);
@@ -268,7 +279,7 @@ export function playMonth(c: Career): MonthReport {
   }
 
   // ---- reputation, trust, morale, money ----
-  const lgF = getCountry(s.country).leagueRep / 85 * ([1, 0.6, 0.4][s.division - 1] ?? 0.4);
+  const lgF = s.youth ? 0.15 : getCountry(s.country).leagueRep / 85 * ([1, 0.6, 0.4][s.division - 1] ?? 0.4);
   const scout = balanceEffects(c.plan.balance).scout * (1 + c.mods.repBonus);
   if (rated.length) gainReputation(c, ((avg - 6.7) * 0.6 * Math.min(rated.length, 4) / 4 + ga * 0.07) * lgF * scout);
   else if (p.reputation > 40) gainReputation(c, -0.2);
@@ -314,7 +325,8 @@ function rollover(c: Career, news: string[]): SeasonSummary {
     ovrStart: s.ovrStart, ovrEnd: playerOverall(p),
   };
   summary.division = s.division;
-  summary.scorerRank = scorerTable(s, p.name).myRank;
+  summary.youth = s.youth;
+  summary.scorerRank = s.youth ? undefined : scorerTable(s, p.name).myRank;
   if (summary.goals >= 20) milestone(c, 'season20');
   if (s.fixtures.filter((f) => f.comp === 'league' && f.report?.involvement === 'started').length >= 20) milestone(c, 'regular1');
   c.history.push(summary);
@@ -351,7 +363,12 @@ function rollover(c: Career, news: string[]): SeasonSummary {
   c.purchases = 0;
   p.injury = p.injury ? { ...p.injury, untilDay: p.injury.untilDay - 360, year: c.year } : null;
   if (p.injury && p.injury.untilDay <= 0) p.injury = null;
-  c.season = p.contract ? buildSeason(c, p.contract.clubId) : null;
+  if (c.academy && p.age >= 20) {
+    news.push('🎓 You are 20: your academy days are over. Sign for a professional club.');
+    log(c, 'transfer', `Left the ${CLUB_MAP[c.academy.clubId].name} academy at 20.`);
+    c.academy = null;
+  }
+  c.season = c.academy ? buildYouthSeason(c, c.academy.clubId) : p.contract ? buildSeason(c, p.contract.clubId) : null;
   news.push(`— Season ${c.year}/${String((c.year + 1) % 100).padStart(2, '0')} begins. You are now ${p.age}. —`);
 
   const ovr = playerOverall(p);

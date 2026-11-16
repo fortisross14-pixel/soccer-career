@@ -1,4 +1,4 @@
-import type { Career, CareerMods, PositionKey, SkillKey } from '../game/types';
+import type { Career, CareerMods, PositionKey, Rarity, SkillKey } from '../game/types';
 import { POSITION_MAP } from '../data/positions';
 import { milestone } from './coins';
 import { TRINKET_MAP, type TrinketFx } from '../data/legacy';
@@ -7,23 +7,33 @@ import { getCountry } from '../data/countries';
 import { CLUB_MAP } from '../data/clubs';
 import { allCaps, playerOverall } from './overall';
 import { addPack } from './cards';
-import { firstOffers, loanOffers, windowOffers } from './market';
+import { academyStartOffers, loanOffers, windowOffers } from './market';
 import { currentRole, roleRank } from './match';
 import { isWindow } from './month';
 import { clamp, randInt, rng, rngState, seedRng, uid } from './util';
 
-export const START_AGE = 17;
+export const START_AGE = 11;
 export const START_YEAR = 2026;
 
 export interface CareerSetup {
   upgrades: Record<string, number>;
   relics: string[];
+  /** best card rarity unlocked (by completed careers) */
+  cardTier?: Rarity;
 }
 
-export const NO_SETUP: CareerSetup = { upgrades: {}, relics: [] };
+export const NO_SETUP: CareerSetup = { upgrades: {}, relics: [], cardTier: 'common' };
+
+/** card quality unlocks: rare after 1 completed career, epic after 3, legendary after 6 */
+export function cardTierFor(completed: number): Rarity {
+  return completed >= 6 ? 'legendary' : completed >= 3 ? 'epic' : completed >= 1 ? 'rare' : 'common';
+}
+export const CARD_UNLOCKS: { tier: Rarity; careers: number }[] = [
+  { tier: 'common', careers: 0 }, { tier: 'rare', careers: 1 }, { tier: 'epic', careers: 3 }, { tier: 'legendary', careers: 6 },
+];
 
 export function baseMods(): CareerMods {
-  return { injuryCut: 0, handBonus: 0, extraBoosts: 0, extraPlays: 0, luck: 0, youthGrowth: 0, repBonus: 0, offerBonus: 0, wageBonus: 0, coinMult: 1, noInjuryUntil: 0, ratingBonus: 0 };
+  return { injuryCut: 0, handBonus: 0, extraBoosts: 0, extraPlays: 0, luck: 0, youthGrowth: 0, repBonus: 0, offerBonus: 0, wageBonus: 0, coinMult: 1, noInjuryUntil: 0, ratingBonus: 0, maxRarity: 'legendary' };
 }
 
 const POT_STEP = 0.021; // ≈ +1 POT
@@ -52,7 +62,7 @@ export function createCareer(name: string, country: string, position: PositionKe
   const skills = {} as Record<SkillKey, number>;
   for (const k of SKILL_KEYS) {
     const gk = SKILL_MAP[k].category === 'Goalkeeping';
-    const base = gk && position !== 'GK' ? randInt(10, 18) : clamp(Math.round(caps[k] * 0.82 + randInt(-3, 3)), 10, caps[k]);
+    const base = gk && position !== 'GK' ? randInt(8, 14) : clamp(Math.round(caps[k] * 0.62 + randInt(-3, 3)), 10, caps[k]);
     skills[k] = keys.includes(k) ? Math.min(caps[k], base + keyBonus) : base;
   }
   skills.leadership = Math.min(99, skills.leadership + sum((f) => f.leadership));
@@ -69,6 +79,7 @@ export function createCareer(name: string, country: string, position: PositionKe
   mods.coinMult = 1 + sum((f) => f.coinMult);
   mods.noInjuryUntil = sum((f) => f.noInjurySeasons) ? START_YEAR + sum((f) => f.noInjurySeasons) : 0;
   mods.ratingBonus = sum((f) => f.rating);
+  mods.maxRarity = setup.cardTier ?? 'legendary';
 
   const c: Career = {
     version: 2,
@@ -95,6 +106,7 @@ export function createCareer(name: string, country: string, position: PositionKe
     pendingCoins: [],
     coinsEarned: 0,
     world: { div: {} },
+    academy: null,
     bestDiv: 9,
     firstEver: [],
     offers: [],
@@ -111,7 +123,7 @@ export function createCareer(name: string, country: string, position: PositionKe
     peakOvr: 0,
     retired: false,
   };
-  c.offers = firstOffers(c);
+  c.offers = academyStartOffers(c);
   c.peakOvr = playerOverall(c.player);
   addPack(c, 'silver', 'Welcome pack');
   addPack(c, 'bronze', 'Academy graduation');
@@ -123,10 +135,10 @@ export function createCareer(name: string, country: string, position: PositionKe
   for (let i = 0; i < sum((f) => f.iceBaths); i++) c.cards.push({ uid: uid('cd'), defId: 're-ice', isNew: true });
   milestone(c, 'start');
   c.notices = [
-    `You are a ${stars}-star prospect from ${country}. Three lower-league clubs want to sign you. Choose your first contract.`,
-    'Open your welcome packs in the Cards tab before the season starts.',
+    `You are an 11-year-old ${stars}-star prospect from ${country}. Academies want you. Pick where to grow up.`,
+    'You stay in the academy until a club signs you, you are promoted to the first team, or you turn 20.',
   ];
-  c.log.unshift({ year: c.year, month: 0, kind: 'milestone', text: `${c.player.name} turns professional at 17 as a ${stars}-star prospect from ${country} (${getCountry(country).leagueName}).` });
+  c.log.unshift({ year: c.year, month: 0, kind: 'milestone', text: `${c.player.name} is scouted at 11 as a ${stars}-star prospect from ${country} (${getCountry(country).leagueName}).` });
   c.rng = rngState();
   return c;
 }

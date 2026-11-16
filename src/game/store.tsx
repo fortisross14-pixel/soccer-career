@@ -4,7 +4,7 @@ import { createCareer } from '../engines/career';
 import { playMonth as enginePlayMonth, canPlay, finalizeRetirement, isWindow } from '../engines/month';
 import { rngState, seedRng } from '../engines/util';
 import { addToHof, firstFreeSlot, loadSlot, saveToSlot } from './save';
-import { creditCoins, loadMeta, saveMeta, startRun, type Meta } from './meta';
+import { completeCareer, creditCoins, loadMeta, saveMeta, startRun, type Meta } from './meta';
 import { fx } from '../components/fx';
 
 interface Ctx {
@@ -42,7 +42,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const setMeta = (m: Meta) => { metaRef.current = m; setMetaState(m); saveMeta(m); };
 
   const commit = (c: Career, quietCoins = false) => {
-    if (c.retired && !c.legacy) { finalizeRetirement(c); addToHof(c); }
+    if (c.retired && !c.legacy) { finalizeRetirement(c); addToHof(c); setMeta(completeCareer(metaRef.current)); }
     if (c.pendingCoins.length) {
       const events = c.pendingCoins;
       for (const e of events) {
@@ -111,7 +111,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (canPlay(c)) break;
       const r = enginePlayMonth(c);
       list.push(r);
-      if (c.retired || c.decisions.length || r.seasonEnd || isWindow(c.month) || (packsAtStart < 6 && c.packs.length >= 6)) break;
+      if (c.retired || c.decisions.length || r.seasonEnd || (isWindow(c.month) && (!c.academy || c.offers.length > 0)) || (!c.academy && packsAtStart < 6 && c.packs.length >= 6)) break;
     }
     c.rng = rngState();
     // coins earned while playing are shown inside the month report instead of as toasts

@@ -181,6 +181,7 @@ export interface SeasonState {
   contName: string;
   contAlive: boolean;
   natTournament?: { name: string; alive: boolean; qualified: boolean };
+  youth?: boolean;
   stats: SeasonStats;
   scorers: ScorerRival[];
   honors: string[];
@@ -233,7 +234,7 @@ export interface Player {
 
 export interface Offer {
   uid: string;
-  kind: 'transfer' | 'renewal' | 'loan' | 'first';
+  kind: 'transfer' | 'renewal' | 'loan' | 'first' | 'academy' | 'promotion';
   clubId: string;
   wage: number;
   years: number;
@@ -293,6 +294,7 @@ export interface SeasonSummary {
   ovrEnd: number;
   division?: number;
   scorerRank?: number;
+  youth?: boolean;
 }
 
 export interface Honor { label: string; count: number }
@@ -315,6 +317,7 @@ export interface CareerMods {
   coinMult: number;
   noInjuryUntil: number; // season year
   ratingBonus: number;
+  maxRarity: Rarity;     // best card rarity this profile has unlocked
 }
 
 export interface Career {
@@ -337,6 +340,7 @@ export interface Career {
   pendingCoins: CoinEvent[];
   coinsEarned: number;
   world: { div: Record<string, Division> };
+  academy: { clubId: string } | null;   // youth academy, ages 11-19
   bestDiv: number;              // highest level reached (1 = top flight), 9 = none yet
   firstEver: string[];          // milestones unlocked for the first time on this profile
   offers: Offer[];

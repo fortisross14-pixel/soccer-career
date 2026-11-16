@@ -1,7 +1,8 @@
 import type { Career, ClubDef, Division, Offer, SquadRole } from '../game/types';
 import { CLUBS, CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
-import { buildSeason } from './calendar';
+import { buildSeason, buildYouthSeason } from './calendar';
+import { academyRating } from './teams';
 import { currentRole, roleRank, squadRole, ROLE_LABEL } from './match';
 import { playerOverall, potentialOverall } from './overall';
 import { STAFF_PERK } from './perks';
@@ -183,6 +184,18 @@ export function acceptOffer(c: Career, offerUid: string): string {
     c.log.unshift({ year: c.year, month: c.month, kind: 'transfer', text: `Signed a contract extension with ${club.name} until ${c.year + o.years + 1} (${ROLE_LABEL[o.role]}).` });
     return `Extension signed with ${club.name}.`;
   }
+  if (o.kind === 'academy') {
+    const fromYouth = !!c.academy;
+    c.academy = { clubId: club.id };
+    c.offers = [];
+    p.trust = 50;
+    c.log.unshift({ year: c.year, month: c.month, kind: 'transfer', text: `${fromYouth ? 'Moved to' : 'Joined'} the ${club.name} academy at age ${p.age}.` });
+    const playedAny = c.season?.fixtures.some((f) => f.played);
+    c.season = buildYouthSeason(c, club.id, playedAny ? day : 0);
+    return `Welcome to the ${club.name} academy!`;
+  }
+  const leavingAcademy = !!c.academy;
+  c.academy = null;
   const prev = p.contract;
   if (o.kind === 'loan' && prev) {
     p.contract = { clubId: club.id, wage: prev.wage, yearsLeft: 1, promisedRole: o.role, parentClubId: prev.clubId, parentWage: prev.wage, parentYears: prev.yearsLeft };
@@ -195,14 +208,14 @@ export function acceptOffer(c: Career, offerUid: string): string {
   milestone(c, 'contract');
   if (club.country !== p.country) milestone(c, 'abroad');
   if (club.tier === 'Elite') milestone(c, 'elite');
-  const kindText = o.kind === 'loan' ? 'Joined on loan' : o.kind === 'first' ? 'Signed your first professional contract with' : 'Transferred to';
+  const kindText = o.kind === 'loan' ? 'Joined on loan' : o.kind === 'promotion' ? 'Promoted from the academy to the first team of' : o.kind === 'first' || leavingAcademy ? 'Signed your first professional contract with' : 'Transferred to';
   c.log.unshift({ year: c.year, month: c.month, kind: 'transfer', text: `${kindText} ${club.name} (${getCountry(club.country).leagueName}) — ${ROLE_LABEL[o.role]}, ${o.years} yr.` });
 
   // rebuild the calendar for the new club
   const playedAny = c.season?.fixtures.some((f) => f.played);
   const old = c.season;
   const fresh = buildSeason(c, club.id, playedAny ? day : 0);
-  if (old && playedAny) {
+  if (old && playedAny && !old.youth) {
     fresh.fixtures = [...old.fixtures.filter((f) => f.played), ...fresh.fixtures];
     fresh.stats = old.stats;
     fresh.honors = old.honors;
@@ -215,4 +228,60 @@ export function acceptOffer(c: Career, offerUid: string): string {
   }
   c.season = fresh;
   return `Welcome to ${club.name}!`;
+}
+
+// ---------------- academy (ages 11-19) ----------------
+
+function academyOffer(c: Career, club: ClubDef, note: string): Offer {
+  const role = squadRole(playerOverall(c.player), academyRating(club.id, c.player.age));
+  return { uid: uid('of'), kind: 'academy', clubId: club.id, wage: 0, years: Math.max(1, 20 - c.player.age), role, pushes: 0, final: true, note };
+}
+
+/** the three academies that want an 11-year-old, matched to prospect quality */
+export function academyStartOffers(c: Career): Offer[] {
+  const p = c.player;
+  const ovr = playerOverall(p);
+  const home = CLUBS.filter((cl) => cl.country === p.country);
+  const by = (target: number, exclude: string[]) => [...home].filter((cl) => !exclude.includes(cl.id)).sort((a, b) => Math.abs(academyRating(a.id, p.age) - target) - Math.abs(academyRating(b.id, p.age) - target))[0];
+  const a = by(ovr + 1, []);
+  const b = by(ovr + 4, [a.id]);
+  const cc = by(ovr + 8, [a.id, b.id]);
+  const offers = [academyOffer(c, a, 'Local academy · lots of minutes'), academyOffer(c, b, 'Regional academy'), academyOffer(c, cc, 'Ambitious academy · fight for a place')];
+  if (p.stars >= 5) {
+    const giant = [...home].sort((x, y) => y.rating - x.rating)[Math.floor(rng() * 3)];
+    if (giant && !offers.some((o) => o.clubId === giant.id)) offers.push(academyOffer(c, giant, 'Elite academy gamble'));
+  }
+  return offers;
+}
+
+/** offers for an academy player during a transfer window */
+export function academyWindowOffers(c: Career): Offer[] {
+  const p = c.player;
+  if (!c.academy) return [];
+  const ovr = playerOverall(p);
+  const parent = CLUB_MAP[c.academy.clubId];
+  const out: Offer[] = [];
+  if (p.age < 16) {
+    // outgrowing your academy: bigger academies come knocking
+    if (ovr >= academyRating(parent.id, p.age) + 3 && c.month === 0) {
+      const pool = CLUBS.filter((cl) => cl.country === p.country && cl.rating > parent.rating && Math.abs(academyRating(cl.id, p.age) - (ovr + 2)) <= 4);
+      shuffle(pool).slice(0, randInt(1, 2)).forEach((cl) => out.push(academyOffer(c, cl, 'Bigger academy scouted you')));
+    }
+    return out;
+  }
+  // promotion to your own first team
+  const toFirst = squadRole(ovr, parent.rating);
+  if (roleRank(toFirst) >= 1 || (p.age >= 18 && roleRank(toFirst) >= 0 && chance(0.35))) {
+    const o = makeOffer(c, parent, 'promotion', 'Promoted to the first team');
+    out.push(o);
+  }
+  // professional clubs that want to sign you
+  const T = interestLevel(c);
+  const pool = CLUBS.filter((cl) => cl.id !== parent.id && cl.country === p.country && cl.rating >= T - 8 && cl.rating <= T + 3);
+  const n = p.age >= 19 ? randInt(2, 3) : p.age >= 17 ? randInt(0, 2) : chance(0.35) ? 1 : 0;
+  for (const cl of shuffle(pool).slice(0, n)) {
+    const o = makeOffer(c, cl, 'transfer', 'Turn pro');
+    if (roleRank(o.role) >= 1 || p.age >= 19) out.push(o);
+  }
+  return out;
 }

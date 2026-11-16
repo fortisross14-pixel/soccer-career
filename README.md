@@ -1,6 +1,6 @@
 # The Eleventh ⚽
 
-A football career simulator. Turn pro at 17 and live your career **one month at a
+A football career roguelike. Join an academy at 11, turn pro, and live your career **one month at a
 time**: every fixture is simulated and gets its own match report, card packs are your
 main way to grow, and transfer windows bring offers, renewals, loans and negotiation.
 Built with **Vite + React + TypeScript**, deployed to **GitHub Pages**.
@@ -79,7 +79,19 @@ profile typically owns at that stage. Current medians (160 careers each):
 About half of careers reach the national team, about 1 Ballon d'Or per 7 careers, and
 about 20% end as Legend or better.
 
+## Academy years
+
+Careers start at **11**. Your prospect quality decides which academies want you (better academies coach
+better, but you play less if you're not good enough). You play a youth league each season, and
+"Sim season" keeps these years quick. You leave the academy when:
+- a bigger academy scouts you (before 16, summer window),
+- your club promotes you to its first team, or another club offers a pro contract (from 16, July/January), or
+- you turn **20**, when you must sign for a professional club.
+
 ## Roguelike meta-progression
+
+- **Card quality unlocks by completed careers:** common only on your first run, rare after 1 career,
+  epic after 3, legendary after 6. Higher rarities in packs drop to your unlocked cap.
 
 - **Legacy coins** are a profile currency, separate from career money. They come from once-per-career
   milestones (first pro contract, first goal, first continental match, international debut, promotion,

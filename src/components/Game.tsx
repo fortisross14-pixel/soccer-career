@@ -51,7 +51,7 @@ export default function Game() {
           <button onClick={exit} className="w-10 h-10 shrink-0 rounded-lg bg-red text-white border-2 border-ink shadow-[2px_2px_0_#121212] grid place-items-center font-display text-lg" title="Main menu" aria-label="Main menu">XI</button>
           <div className="min-w-0 flex-1">
             <div className="font-display text-lg sm:text-2xl uppercase leading-none truncate">{p.name}</div>
-            <div className="text-[11px] sm:text-xs text-muted font-bold truncate mt-1">{POSITION_MAP[p.position].short} · {club?.name ?? 'Free agent'} · Age {p.age} · {MONTHS_LONG[c.month]} {calYear(c.year, c.month)}</div>
+            <div className="text-[11px] sm:text-xs text-muted font-bold truncate mt-1">{POSITION_MAP[p.position].short} · {c.academy ? `${CLUB_MAP[c.academy.clubId].name} academy` : club?.name ?? (p.age < 17 ? 'No academy' : 'Free agent')} · Age {p.age} · {MONTHS_LONG[c.month]} {calYear(c.year, c.month)}</div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <HudNum label="OVR" value={ovr} tone="sun" />
@@ -95,7 +95,7 @@ export default function Game() {
             <><button className="btn-white hidden sm:inline-flex" onClick={() => setFinaleSeen(false)}>Career summary</button><button className="btn-sun" onClick={exit}>Main menu</button></>
           ) : (
             <>
-              <button className="btn-white hidden sm:inline-flex" disabled={!!blocker} onClick={() => play(true)} title="Play months until something needs your attention">Sim to event ⏩</button>
+              <button className="btn-white hidden sm:inline-flex" disabled={!!blocker} onClick={() => play(true)} title="Play months until something needs your attention">{c.academy ? 'Sim season ⏩' : 'Sim to event ⏩'}</button>
               <button className="btn-red !px-5 !py-3" disabled={!!blocker} onClick={() => play(false)}>Play {MONTHS_LONG[c.month]} →</button>
             </>
           )}

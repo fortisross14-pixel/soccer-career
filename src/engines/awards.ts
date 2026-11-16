@@ -36,6 +36,11 @@ export function endLeagueSeason(c: Career): string[] {
   const s = c.season;
   if (!s || s.ended) return [];
   s.ended = true;
+  if (s.youth) {
+    const ypos = tablePosition(s);
+    if (ypos === 1) { s.honors.push(`${s.leagueName} Title`); addHonor(c.honors.club, `${s.leagueName} Title`); }
+    return [ypos === 1 ? `🏆 ${s.clubName} win the ${s.leagueName}!` : `${s.clubName} finish ${ordinal(ypos)} in the ${s.leagueName}.`];
+  }
   const news: string[] = [];
   const pos = tablePosition(s);
   const n = s.table.length;

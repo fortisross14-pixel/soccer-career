@@ -7,6 +7,7 @@ import { COUNTRIES } from '../data/countries';
 import { POSITIONS } from '../data/positions';
 import { CRATES, TRINKETS, TRINKET_MAP, TRINKET_COLOR, TRINKET_RARITIES, UPGRADES, trinketSlots } from '../data/legacy';
 import { MILESTONES } from '../engines/coins';
+import { CARD_UNLOCKS } from '../engines/career';
 import { seasonLabel } from '../engines/month';
 import { Coin } from './ui';
 import { fx, burstFrom } from './fx';
@@ -27,7 +28,7 @@ export default function Home() {
           <div>
             <div className="tag tag-sun mb-3">Football career roguelike</div>
             <h1 className="h-outline text-5xl sm:text-7xl leading-[.9]">The Eleventh</h1>
-            <p className="on-grass font-semibold mt-3 max-w-lg">Turn pro at 17, play your career month by month, and earn legacy coins from every milestone to make your next run stronger.</p>
+            <p className="on-grass font-semibold mt-3 max-w-lg">Join an academy at 11, turn pro, play your career month by month, and earn legacy coins from every milestone to make your next run stronger.</p>
           </div>
           <div className="sticker !bg-sun px-4 py-3 rotate-[-2deg]">
             <div className="text-[10px] uppercase tracking-[.14em] font-black">Legacy coins</div>
@@ -105,6 +106,21 @@ function PlayTab({ goShop, goCrates }: { goShop: () => void; goCrates: () => voi
           </div>
           <div className="text-[11px] text-muted font-semibold mt-2">
             {owned.length ? <>Upgrades: {owned.map((u) => `${u.name} ${meta.upgrades[u.id]}`).join(' · ')}</> : <>No legacy upgrades yet. <button className="underline font-bold" onClick={goShop}>Visit the shop</button></>}
+          </div>
+        </div>
+
+        <div className="sticker-flat p-3 mb-5">
+          <div className="text-xs font-extrabold uppercase tracking-wider mb-2">Card quality · {meta.completed ?? 0} careers completed</div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {CARD_UNLOCKS.map((u) => {
+              const on = (meta.completed ?? 0) >= u.careers;
+              return (
+                <div key={u.tier} className={`rounded-md border-2 border-ink px-1.5 py-1 text-center ${on ? '' : 'opacity-40'}`} style={{ background: on ? `var(--${u.tier})` : '#fff' }}>
+                  <div className="text-[10px] font-black uppercase">{u.tier}</div>
+                  <div className="text-[9px] font-bold">{on ? 'unlocked' : `after ${u.careers}`}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

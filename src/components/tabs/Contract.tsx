@@ -26,6 +26,18 @@ export default function Contract() {
 
   return (
     <div className="space-y-5">
+      {c.academy && (
+        <section className="panel p-5 !bg-sun">
+          <SectionTitle kicker="Academy" title={`${CLUB_MAP[c.academy.clubId].name} academy`} />
+          <p className="text-sm font-semibold">You are {p.age}. You stay here until a club signs you, you are promoted to the first team, or you turn 20 and must leave. From 16, offers can arrive in the July and January windows. Before that, bigger academies may scout you in the summer.</p>
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <Stat label="Coaching level" value={CLUB_MAP[c.academy.clubId].rating} />
+            <Stat label="Your OVR" value={playerOverall(p)} />
+            <Stat label="Must leave in" value={`${Math.max(0, 20 - p.age)} yr`} />
+          </div>
+        </section>
+      )}
+      {!c.academy && (
       <section className="panel p-5">
         <SectionTitle kicker="Current deal" title={club ? club.name : 'Free agent'} right={ct?.parentClubId ? <span className="pill border-ink text-sky">On loan from {CLUB_MAP[ct.parentClubId].name}</span> : undefined} />
         {ct && club ? (
@@ -46,6 +58,7 @@ export default function Contract() {
         ) : <p className="text-sm text-muted">You have no club. Choose one of the offers below.</p>}
         {msg && <div className="mt-3 text-sm rounded-md bg-sun border border-ink px-3 py-2">{msg}</div>}
       </section>
+      )}
 
       <section className="panel p-5">
         <SectionTitle kicker={window ? 'Transfer window open' : 'Transfer window closed'} title="Offers" />
@@ -75,7 +88,7 @@ export function OffersList({ onMsg }: { onMsg?: (m: string) => void }) {
       {c.offers.map((o) => {
         const club = CLUB_MAP[o.clubId];
         const cont = divOf(c, club.id) === 1 && club.division === 1 && club.continental !== 'none' ? continentalName(club.country, club.continental) : null;
-        const kindLabel = o.kind === 'renewal' ? 'Contract extension' : o.kind === 'loan' ? 'Loan offer' : o.kind === 'first' ? 'First pro contract' : 'Transfer offer';
+        const kindLabel = o.kind === 'renewal' ? 'Contract extension' : o.kind === 'loan' ? 'Loan offer' : o.kind === 'academy' ? 'Academy place' : o.kind === 'promotion' ? 'First-team promotion' : o.kind === 'first' || c.academy ? 'First pro contract' : 'Transfer offer';
         const better = curClub ? club.rating - curClub.rating : 0;
         return (
           <div key={o.uid} className={`rounded-xl border p-4 flex flex-col ${o.kind === 'renewal' ? 'border-ink bg-[#e6f8ee]' : 'border-ink bg-white'}`}>
@@ -96,7 +109,7 @@ export function OffersList({ onMsg }: { onMsg?: (m: string) => void }) {
               <span className="pill text-muted">{club.tier}</span>
             </div>
             <div className="flex justify-between text-sm mb-3">
-              <div><div className="stat-num text-lg">{fmtMoney(o.wage)}<span className="text-xs text-muted">/yr</span></div><div className="text-[11px] text-muted">{o.kind === 'loan' ? 'Parent club pays your wage' : `${o.years}-year deal`}</div></div>
+              {o.kind === 'academy' ? <div><div className="stat-num text-lg">Youth place</div><div className="text-[11px] text-muted">Coaching level {club.rating} · until age 20</div></div> : <div><div className="stat-num text-lg">{fmtMoney(o.wage)}<span className="text-xs text-muted">/yr</span></div><div className="text-[11px] text-muted">{o.kind === 'loan' ? 'Parent club pays your wage' : `${o.years}-year deal`}</div></div>}
               {cur && o.kind !== 'loan' && <div className="text-right text-[11px] text-muted">now {fmtMoney(cur.wage)}<br />{o.wage >= cur.wage ? <span className="text-[#178a4c]">+{Math.round((o.wage / cur.wage - 1) * 100)}%</span> : <span className="text-red">{Math.round((o.wage / cur.wage - 1) * 100)}%</span>}</div>}
             </div>
             {roleRank(o.role) <= 1 && <div className="text-[11px] text-[#c65d00] mb-2">Few minutes expected. Development will be slower.</div>}
@@ -111,7 +124,7 @@ export function OffersList({ onMsg }: { onMsg?: (m: string) => void }) {
               )}
               <div className="flex gap-2">
                 <button className="btn-red flex-1" onClick={() => { const m = act((x) => acceptOffer(x, o.uid)); onMsg?.(m); }}>Sign</button>
-                {o.kind !== 'first' && <button className="btn-white btn-sm" onClick={() => act((x) => rejectOffer(x, o.uid))}>Reject</button>}
+                {o.kind !== 'first' && !(o.kind === 'academy' && !c.academy) && <button className="btn-white btn-sm" onClick={() => act((x) => rejectOffer(x, o.uid))}>Reject</button>}
               </div>
               {!o.final && o.kind !== 'loan' && <div className="text-[10px] text-muted text-center">Negotiating can improve terms, but clubs may refuse or walk away.</div>}
               {o.final && <div className="text-[10px] text-[#c65d00] text-center">Final offer</div>}

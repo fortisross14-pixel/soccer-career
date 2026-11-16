@@ -50,7 +50,7 @@ function rollRarity(tier: PackTier, luck: number): Rarity {
 }
 
 export function drawCard(c: Career, rarity: Rarity): CardDef {
-  let idx = RARITY_ORDER.indexOf(rarity);
+  let idx = Math.min(RARITY_ORDER.indexOf(rarity), RARITY_ORDER.indexOf(c.mods.maxRarity ?? 'legendary'));
   while (idx >= 0) {
     const pool = CARD_DEFS.filter((d) => d.rarity === RARITY_ORDER[idx] && cardWeight(c, d) > 0);
     if (pool.length) return weightedPick(pool, (d) => cardWeight(c, d));

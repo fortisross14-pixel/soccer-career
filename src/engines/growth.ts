@@ -20,7 +20,7 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
   const pos = POSITION_MAP[p.position];
   const focus = FOCUSES.find((f) => f.id === c.focus) ?? FOCUSES[0];
   const bal = balanceEffects(c.plan.balance);
-  const clubR = p.contract ? CLUB_MAP[p.contract.clubId]?.rating ?? 65 : 60;
+  const clubR = c.academy ? CLUB_MAP[c.academy.clubId]?.rating ?? 60 : p.contract ? CLUB_MAP[p.contract.clubId]?.rating ?? 65 : 60;
   const coaching = clamp((clubR - 58) / 34, 0, 1);
   const minutesF = available > 0 ? 0.75 + 0.45 * clamp(minutes / (available * 90 * 0.75), 0, 1) : 0.85;
   const injured = p.injury && p.injury.year === c.year && p.injury.untilDay > c.month * 30 + 15;

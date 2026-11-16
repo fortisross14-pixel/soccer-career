@@ -19,10 +19,10 @@ const N = Number(process.argv[2] ?? 200);
 // progression stages: what a profile typically owns after N careers
 const PROFILES: Record<string, CareerSetup> = {
   fresh: NO_SETUP,
-  run2: { upgrades: {}, relics: ['socks'] },
-  run6: { upgrades: { slots: 2, academy: 1, gifted: 2, scouting: 1, kit: 1 }, relics: ['diploma', 'socks', 'shinpads'] },
-  run10: { upgrades: { slots: 2, academy: 2, gifted: 2, scouting: 1, kit: 2, body: 1, binder: 1, agent: 1 }, relics: ['gene', 'talent', 'diploma'] },
-  run15: { upgrades: { slots: 2, academy: 3, scouting: 2, gifted: 3, kit: 3, body: 2, binder: 2, luck: 2, agent: 1, fame: 1, longevity: 1 }, relics: ['feet', 'chosen', 'gene'] },
+  run2: { upgrades: {}, relics: ['socks'], cardTier: 'rare' },
+  run6: { upgrades: { slots: 2, academy: 1, gifted: 2, scouting: 1, kit: 1 }, relics: ['diploma', 'socks', 'shinpads'], cardTier: 'epic' },
+  run10: { upgrades: { slots: 2, academy: 2, gifted: 2, scouting: 1, kit: 2, body: 1, binder: 1, agent: 1 }, relics: ['gene', 'talent', 'diploma'], cardTier: 'legendary' },
+  run15: { upgrades: { slots: 2, academy: 3, scouting: 2, gifted: 3, kit: 3, body: 2, binder: 2, luck: 2, agent: 1, fame: 1, longevity: 1 }, relics: ['feet', 'chosen', 'gene'], cardTier: 'legendary' },
 };
 const profArg = process.argv.find((a) => a.startsWith('--profile='))?.split('=')[1] ?? (process.argv.includes('--maxed') ? 'run15' : 'fresh');
 const SETUP: CareerSetup = PROFILES[profArg] ?? NO_SETUP;
@@ -41,9 +41,20 @@ function manageCards(c: Career) {
 
 function manageMarket(c: Career) {
   const p = c.player;
+  if (!c.academy && !p.contract && c.offers.some((o) => o.kind === 'academy')) {
+    const good = [...c.offers].filter((o) => roleRank(o.role) >= 2).sort((a, b) => CLUB_MAP[b.clubId].rating - CLUB_MAP[a.clubId].rating)[0] ?? c.offers[0];
+    acceptOffer(c, good.uid); return;
+  }
+  if (c.academy) {
+    const parentR = CLUB_MAP[c.academy.clubId].rating;
+    const pro = c.offers.filter((o) => o.kind !== 'academy' && (roleRank(o.role) >= 2 || (o.kind === 'promotion' && p.age >= 18) || p.age >= 19)).sort((a, b) => CLUB_MAP[b.clubId].rating - CLUB_MAP[a.clubId].rating)[0];
+    if (pro && p.age >= 17) { acceptOffer(c, pro.uid); return; }
+    const acad = c.offers.find((o) => o.kind === 'academy' && CLUB_MAP[o.clubId].rating > parentR && roleRank(o.role) >= 2);
+    if (acad) acceptOffer(c, acad.uid);
+    return;
+  }
   const cur = p.contract ? CLUB_MAP[p.contract.clubId].rating : 0;
   const ranked = [...c.offers].sort((a, b) => (roleRank(b.role) >= 2 ? 1 : 0) - (roleRank(a.role) >= 2 ? 1 : 0) || CLUB_MAP[b.clubId].rating - CLUB_MAP[a.clubId].rating);
-  if (c.offers.some((o) => o.kind === 'first')) { acceptOffer(c, c.offers[0].uid); return; }
   const best = ranked.find((o) => o.kind !== 'renewal' && roleRank(o.role) >= 2 && CLUB_MAP[o.clubId].rating >= cur + 3);
   if (best) { acceptOffer(c, best.uid); return; }
   const ren = c.offers.find((o) => o.kind === 'renewal');
@@ -57,7 +68,7 @@ function run(i: number) {
   const c = createCareer(`Sim ${i}`, country, pos, SETUP, 1000 + i);
   seedRng(c.rng);
   let guard = 0;
-  while (!c.retired && guard++ < 400) {
+  while (!c.retired && guard++ < 500) {
     manageCards(c);
     manageMarket(c);
     while (c.decisions.length) {
@@ -66,7 +77,7 @@ function run(i: number) {
       applyDecision(c, d, retire ? 'retire' : d.choices[0].id === 'leave' ? d.choices[1].id : d.choices[0].id);
     }
     if (c.retired) { finalizeRetirement(c); break; }
-    if (!c.player.contract) { manageMarket(c); if (!c.player.contract) break; }
+    if (!c.player.contract && !c.academy) { manageMarket(c); if (!c.player.contract && !c.academy) break; }
     playMonth(c);
   }
   return c;
@@ -102,10 +113,11 @@ console.log('grades', JSON.stringify(grades));
 console.log('legacy coins per career', dist(careers.map((c) => c.coinsEarned)), 'milestones', dist(careers.map((c) => c.milestones.length)));
 console.log('reached top flight', Math.round(careers.filter((c) => c.bestDiv === 1).length / N * 100) + '%', 'best tier', dist(careers.map((c) => c.bestDiv)), 'golden boots any', careers.filter((c) => c.milestones.includes('boot1')).length);
 const top5 = careers.filter((c) => ['England','Spain','Italy','Germany','France'].includes(c.player.country));
-console.log('TOP-5 countries: reached top flight', Math.round(top5.filter((c) => c.bestDiv === 1).length / top5.length * 100) + '%', 'reached 2nd tier', Math.round(top5.filter((c) => c.bestDiv <= 2).length / top5.length * 100) + '%', 'best club', dist(top5.map((c) => Math.max(...c.history.map((h) => Object.values(CLUB_MAP).find((x) => h.clubs.includes(x.name))?.rating ?? 0)))));
+console.log('TOP-5 countries: reached top flight', Math.round(top5.filter((c) => c.bestDiv === 1).length / top5.length * 100) + '%', 'reached 2nd tier', Math.round(top5.filter((c) => c.bestDiv <= 2).length / top5.length * 100) + '%', 'best club', dist(top5.map((c) => Math.max(0, ...c.history.filter((h) => !h.youth).map((h) => Object.values(CLUB_MAP).find((x) => h.clubs.includes(x.name))?.rating ?? 0)))));
+console.log('turned pro at age', dist(careers.map((c) => c.history.find((h) => !h.youth)?.age ?? 99)), 'promoted from own academy', Math.round(careers.filter((c) => c.log.some((l) => l.text.startsWith('Promoted from the academy'))).length / N * 100) + '%');
 console.log('promoted ever', Math.round(careers.filter((c) => c.milestones.includes('promo1')).length / N * 100) + '%');
 console.log('money at end', dist(careers.map((c) => Math.round(c.player.money / 1e6))), '($M)');
-const clubsMax = careers.map((c) => Math.max(...c.history.map((h) => CLUB_MAP[Object.values(CLUB_MAP).find((x) => h.clubs.includes(x.name))?.id ?? '']?.rating ?? 0)));
+const clubsMax = careers.map((c) => Math.max(...c.history.filter((h) => !h.youth).map((h) => CLUB_MAP[Object.values(CLUB_MAP).find((x) => h.clubs.includes(x.name))?.id ?? '']?.rating ?? 0)));
 console.log('best club rating', dist(clubsMax));
 const ex = careers.find((c) => c.player.position === 'ST' && c.peakOvr >= 80) ?? careers[0];
 console.log(`\nExample: ${ex.player.name} ${ex.player.position} ${ex.player.stars}★`);
