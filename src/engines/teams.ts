@@ -18,14 +18,25 @@ function parseAcad(id: string): { clubId: string; age: number } | null {
   return { clubId, age: Number(age) };
 }
 
-export function youthLabel(age: number): string {
-  return age <= 13 ? 'U14' : age <= 15 ? 'U16' : age <= 17 ? 'U18' : 'U21';
+/** academy age groups: U14 (11-14), U17 (15-17), U20 (18-19) */
+export function youthBand(age: number): { label: string; min: number; max: number; peerAge: number } {
+  if (age <= 14) return { label: 'U14', min: 11, max: 14, peerAge: 12.5 };
+  if (age <= 17) return { label: 'U17', min: 15, max: 17, peerAge: 16 };
+  return { label: 'U20', min: 18, max: 20, peerAge: 19 };
 }
 
-/** strength of a club's youth side for players of a given age, on the senior scale */
+export function youthLabel(age: number): string {
+  return youthBand(age).label;
+}
+
+/**
+ * Strength of a club's youth side, on the senior scale. Teammates are the
+ * typical age of the group, so the youngest in a group compete against
+ * older, more developed players and the oldest have the edge.
+ */
 export function academyRating(clubId: string, age: number): number {
   const parent = CLUB_MAP[clubId]?.rating ?? 60;
-  return Math.round((parent - 12) * maturity(age));
+  return Math.round((parent - 12) * maturity(youthBand(age).peerAge));
 }
 
 /** Teams are clubs (by id), national sides ("nat:Spain") or youth sides ("acad:…"). */

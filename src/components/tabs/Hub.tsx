@@ -8,7 +8,7 @@ import { setPlan } from '../../engines/career';
 import { currentRole, injuryRisk, squadLevels, LINE_LABEL } from '../../engines/match';
 import { cardBlocker, playCard, playsPerMonth } from '../../engines/cards';
 import { scorerTable, sortedTable, tablePosition } from '../../engines/calendar';
-import { teamName } from '../../engines/teams';
+import { teamName, youthBand } from '../../engines/teams';
 import { isWindow } from '../../engines/month';
 import { ordinal } from '../../engines/awards';
 import { ballonRace } from '../../engines/stars';
@@ -268,6 +268,11 @@ function SquadPanel() {
       </div>
       <div className={`sticker-flat mt-3 px-3 py-2 text-sm font-bold ${verdict[1]}`}>{verdict[0]}</div>
       {teen && <p className="text-[11px] text-muted font-semibold mt-2">Among adults your match level is a little below your OVR until you are 21 (physical maturity).</p>}
+      {lv.youth && (() => {
+        const b = youthBand(c.player.age);
+        const pos = c.player.age === b.min ? 'one of the youngest' : c.player.age === b.max || (b.label === 'U20' && c.player.age === 19) ? 'one of the oldest' : 'in the middle';
+        return <p className="text-[11px] text-muted font-semibold mt-2">{b.label} group (ages {b.min}–{b.max}): at {c.player.age} you are {pos}. Rivals are shown on your scale, so older teammates look stronger. The gap closes every birthday, until you move up a group.</p>;
+      })()}
     </section>
   );
 }
