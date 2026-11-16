@@ -3,7 +3,7 @@ import type { CardInstance, Career, MonthReport, PositionKey } from './types';
 import { createCareer } from '../engines/career';
 import { playMonth as enginePlayMonth, canPlay, finalizeRetirement, isWindow } from '../engines/month';
 import { rngState, seedRng } from '../engines/util';
-import { addToHof, firstFreeSlot, loadSlot, saveToSlot } from './save';
+import { addToHof, backupSlot, firstFreeSlot, loadSlot, saveToSlot } from './save';
 import { completeCareer, creditCoins, loadMeta, saveMeta, startRun, type Meta } from './meta';
 import { fx } from '../components/fx';
 
@@ -93,6 +93,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const load = (n: number) => {
     const c = loadSlot(n);
     if (!c) return;
+    backupSlot(n);
     slotRef.current = n;
     setSlot(n);
     ref.current = c;

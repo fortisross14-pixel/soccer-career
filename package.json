@@ -9,6 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "sim": "tsx scripts/sim.ts",
+    "test:saves": "tsx scripts/test-saves.ts",
+    "test:saves-ui": "vite build && node scripts/test-saves-ui.mjs",
+    "fixtures": "tsx scripts/make-fixtures.ts",
     "inspect": "tsx scripts/inspect.ts"
   },
   "dependencies": {

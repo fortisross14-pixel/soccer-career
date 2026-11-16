@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { PositionKey } from '../game/types';
 import { useGame } from '../game/store';
-import { allSlots, deleteSlot, legacySaveCount, loadHof, slotOccupied } from '../game/save';
+import { allSlots, backupMeta, deleteSlot, exportSlot, firstFreeSlot, importToSlot, legacySaveCount, loadHof, restoreBackup, slotOccupied } from '../game/save';
 import { buyUpgrade, openCrate, toggleEquip, upgradeCost } from '../game/meta';
 import { COUNTRIES } from '../data/countries';
 import { POSITIONS } from '../data/positions';
@@ -146,6 +146,7 @@ function PlayTab({ goShop, goCrates }: { goShop: () => void; goCrates: () => voi
               ) : (
                 <>
                   <button className="btn-sun btn-sm" onClick={() => load(i + 1)}>{m.retired ? 'View' : 'Play'}</button>
+                  <button className="btn-white btn-sm" title="Download this save as a file" aria-label={`Download ${m.name}`} onClick={() => download(i + 1, m.name)}>⬇</button>
                   <button className="btn-white btn-sm" aria-label={`Delete ${m.name}`} onClick={() => setConfirmDel(i)}>✕</button>
                 </>
               )}
@@ -153,14 +154,50 @@ function PlayTab({ goShop, goCrates }: { goShop: () => void; goCrates: () => voi
           ) : slotOccupied(i + 1) ? (
             <div key={i} className="rounded-lg border-2 border-red p-3 text-xs font-bold flex items-center gap-2">
               <span className="flex-1">Slot {i + 1}: this save could not be read.</span>
+              <button className="btn-white btn-sm" onClick={() => download(i + 1, `slot-${i + 1}`)}>⬇ File</button>
+              {backupMeta(i + 1) && <button className="btn-sun btn-sm" onClick={() => { restoreBackup(i + 1); setSlots(allSlots()); }}>Restore backup</button>}
               {confirmDel === i ? <button className="btn-red btn-sm" onClick={() => { deleteSlot(i + 1); setSlots(allSlots()); setConfirmDel(null); }}>Delete it</button> : <button className="btn-white btn-sm" onClick={() => setConfirmDel(i)}>Clear slot</button>}
             </div>
           ) : (
-            <div key={i} className="rounded-lg border-2 border-dashed border-ink/40 p-3 text-xs text-muted font-bold">Empty slot {i + 1}</div>
+            <EmptySlot key={i} n={i + 1} onRestore={() => setSlots(allSlots())} />
           ))}
+          <label className="btn-white btn-sm inline-block cursor-pointer">
+            ⬆ Import save file
+            <input type="file" accept=".json,application/json" className="hidden" onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              const free = firstFreeSlot();
+              if (!free) { setError('All slots are full. Delete one first.'); return; }
+              const err = importToSlot(free, await f.text());
+              setError(err);
+              setSlots(allSlots());
+            }} />
+          </label>
+          {error && <p className="text-red text-xs font-bold">{error}</p>}
           {legacySaveCount() > 0 && <p className="text-[11px] text-muted font-semibold">Saves from the original version of the game ({legacySaveCount()}) can't be continued in this version. Start a new career.</p>}
         </div>
       </section>
+    </div>
+  );
+}
+
+function download(slot: number, name: string) {
+  const raw = exportSlot(slot);
+  if (!raw) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
+  a.download = `xi-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function EmptySlot({ n, onRestore }: { n: number; onRestore: () => void }) {
+  const b = backupMeta(n);
+  return (
+    <div className="rounded-lg border-2 border-dashed border-ink/40 p-3 text-xs text-muted font-bold flex items-center gap-2">
+      <span className="flex-1">Empty slot {n}{b ? <> · backup: {b.name}, {b.age}, {b.clubName}</> : null}</span>
+      {b && <button className="btn-white btn-sm" onClick={() => { restoreBackup(n); onRestore(); }}>Restore</button>}
     </div>
   );
 }

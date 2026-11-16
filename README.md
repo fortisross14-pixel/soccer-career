@@ -150,6 +150,20 @@ each World Cup or continental championship.
 - Teammates and opponents are generated names, not persistent squads.
 - Card catalogue and decision pool are a first pass and need more content.
 
+## Saves & compatibility
+
+Saves live in `localStorage` (`xi2_save_N`, profile in `xi2_meta`). Old saves must keep working after every update:
+
+- `src/game/migrate.ts` fills in any field an old save is missing by comparing it with a freshly generated career,
+  so new features don't need a hand-written migration for each field (whole new objects still get a default in `loadSlot`).
+- Opening a save copies it to `xi2_backup_N`; a deleted or broken slot can be restored from the home screen.
+  Saves can also be downloaded as a file and imported again.
+- A crash on any screen shows a "your career is safe" screen instead of a blank page.
+- `tests/save-fixtures/` holds saves written by every past release (early and late in a career, four positions).
+  `npm run test:saves` loads each with the current code and plays two seasons; `npm run test:saves-ui` opens them in the
+  built game, visits every tab and plays a month. Both run in the deploy workflow, so a build that breaks old saves never ships.
+- After each release, add its saves: `npm run fixtures -- <short-commit-hash>`.
+
 ## Deploy
 
 Pushing to `main` triggers `.github/workflows/deploy.yml` (GitHub Pages, base `/soccer-career/`).

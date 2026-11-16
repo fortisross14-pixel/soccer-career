@@ -24,7 +24,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # never deploy a build that can't open saves from older releases
+      - run: npm run test:saves
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/test-saves-ui.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -4,9 +4,11 @@ import { CLUB_MAP } from '../data/clubs';
 import { POSITION_MAP } from '../data/positions';
 import { playerGrade } from '../engines/awards';
 import { initStars, setSeasonTargets } from '../engines/stars';
+import { upgradeSave } from './migrate';
 
 // v2 saves. Old (v1) saves are intentionally not migrated.
 const SLOT_KEY = (n: number) => `xi2_save_${n}`;
+const BACKUP_KEY = (n: number) => `xi2_backup_${n}`;
 const HOF_KEY = 'xi2_hall_of_fame';
 export const NUM_SLOTS = 3;
 
@@ -33,11 +35,14 @@ export function legacySaveCount(): number {
 }
 
 export function loadSlot(slot: number): Career | null {
+  return parseSave(safe(() => localStorage.getItem(SLOT_KEY(slot)), null));
+}
+
+function parseSave(raw: string | null): Career | null {
   return safe(() => {
-    const raw = localStorage.getItem(SLOT_KEY(slot));
     if (!raw) return null;
     const c = JSON.parse(raw) as Career;
-    if (c.version !== 2) return null;
+    if (!c || typeof c !== 'object' || !c.player) return null;
     // careers saved before the world existed get one now
     if (!c.stars?.length) { c.stars = initStars(); setSeasonTargets(c.stars); }
     c.awardsHistory ??= [];
@@ -50,15 +55,48 @@ export function loadSlot(slot: number): Career | null {
     c.pendingCoins ??= [];
     c.mods ??= { injuryCut: 0, handBonus: 0, extraBoosts: 0, extraPlays: 0, luck: 0, youthGrowth: 0, repBonus: 0, offerBonus: 0, wageBonus: 0, coinMult: 1, noInjuryUntil: 0, ratingBonus: 0, maxRarity: 'legendary' };
     c.plan ??= { balance: 50 };
-    return c;
+    c.asked ??= { loan: false, transfer: false };
+    c.national ??= { debutAge: null, status: 'Not called up' };
+    try { return upgradeSave(c); } catch (e) { console.error('Save upgrade failed', e); return c; }
   }, null);
 }
 
-export function deleteSlot(slot: number) { safe(() => localStorage.removeItem(SLOT_KEY(slot)), undefined); }
+/** keep a copy of the save as it was when last opened, so an update can never cost a career */
+export function backupSlot(slot: number) {
+  safe(() => { const raw = localStorage.getItem(SLOT_KEY(slot)); if (raw) localStorage.setItem(BACKUP_KEY(slot), raw); }, undefined);
+}
+export function hasBackup(slot: number): boolean { return safe(() => localStorage.getItem(BACKUP_KEY(slot)) !== null, false); }
+export function restoreBackup(slot: number): boolean {
+  return safe(() => { const raw = localStorage.getItem(BACKUP_KEY(slot)); if (!raw) return false; localStorage.setItem(SLOT_KEY(slot), raw); return true; }, false);
+}
+export function backupMeta(slot: number): SaveMeta | null {
+  const c = parseSave(safe(() => localStorage.getItem(BACKUP_KEY(slot)), null));
+  return c ? safe(() => metaOf(slot, c), null) : null;
+}
+
+/** the raw save text, for downloading */
+export function exportSlot(slot: number): string | null { return safe(() => localStorage.getItem(SLOT_KEY(slot)), null); }
+/** put a downloaded save file into a slot; returns an error message or null */
+export function importToSlot(slot: number, text: string): string | null {
+  try {
+    const c = JSON.parse(text) as Career;
+    if (!c?.player?.name) return 'That file is not a saved career.';
+    localStorage.setItem(SLOT_KEY(slot), text);
+    return loadSlot(slot) ? null : 'That save could not be read.';
+  } catch { return 'That file is not a saved career.'; }
+}
+
+export function deleteSlot(slot: number) {
+  // the deleted career stays restorable from its backup until the slot is used again
+  safe(() => { backupSlot(slot); localStorage.removeItem(SLOT_KEY(slot)); }, undefined);
+}
 
 export function slotMeta(slot: number): SaveMeta | null {
   const c = loadSlot(slot);
-  if (!c) return null;
+  return c ? safe(() => metaOf(slot, c), null) : null;
+}
+
+function metaOf(slot: number, c: Career): SaveMeta {
   const p = c.player;
   return { slot, name: p.name, age: p.age, position: p.position, country: p.country, clubName: c.academy ? `${CLUB_MAP[c.academy.clubId]?.name ?? ''} academy` : p.contract ? CLUB_MAP[p.contract.clubId]?.name ?? '—' : 'Free agent', overall: displayOverall(p), retired: c.retired, year: c.year };
 }
