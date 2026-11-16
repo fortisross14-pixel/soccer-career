@@ -1,11 +1,12 @@
 import type { Career, Fixture, SeasonState, SeasonStats, TableRow, ContinentalSpot } from '../game/types';
 import { CLUBS, CLUB_MAP, clubsInCountry } from '../data/clubs';
-import { COUNTRIES, getCountry } from '../data/countries';
+import { COUNTRIES, getCountry, leagueNameFor } from '../data/countries';
+import { realisticName } from '../data/names';
 import { CONTINENTAL_CLUB, CONTINENTAL_NATIONS } from '../data/tournaments';
-import { pick, shuffle, uid, poisson, clamp, chance } from './util';
+import { pick, shuffle, uid, poisson, clamp, chance, noise, rng } from './util';
 import { teamRating } from './teams';
 import { playerOverall } from './overall';
-import { divOf, leagueClubs } from './world';
+import { divOf, leagueClubs, leagueRepFor } from './world';
 
 // Season Y runs from day 0 (1 July Y) to day 359 (30 June Y+1); 30-day months.
 export const LEAGUE_START = 36;
@@ -157,7 +158,7 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
   }
 
   const fixtures: Fixture[] = [];
-  const leagueName = division === 2 ? `${country.leagueName} 2` : country.leagueName;
+  const leagueName = leagueNameFor(club.country, division);
   rounds.forEach((r, i) => {
     if (r.day < fromDay) return;
     const pair = r.pairs.find(([h, a]) => h === clubId || a === clubId);
@@ -206,10 +207,35 @@ export function buildSeason(career: Career, clubId: string, fromDay = 0): Season
     contName,
     contAlive: contKey !== 'none',
     stats: emptyStats(),
+    scorers: makeScorers(club.country, division, peers.map((p) => p.id).filter((id) => id !== clubId), rounds.length, country.leagueRep),
     honors: [],
     awards: [],
     ovrStart: playerOverall(career.player),
     clubsThisSeason: [club.name],
     ended: false,
   };
+}
+
+/** the league's scoring race: rival forwards with season targets */
+function makeScorers(country: string, div: number, clubIds: string[], rounds: number, baseRep: number) {
+  const rep = leagueRepFor(baseRep, div);
+  const leader = (17 + (rep - 70) * 0.08 + noise() * 3) * (rounds / 34);
+  const ratios = [1, 0.9, 0.84, 0.78, 0.72, 0.68, 0.64, 0.6, 0.56];
+  return ratios.map((r, i) => ({
+    name: realisticName(country, `scorer-${country}-${div}-${i}-${rng()}`),
+    clubId: clubIds[Math.floor(rng() * clubIds.length)] ?? clubIds[0],
+    target: Math.max(3, Math.round(leader * r * (0.95 + rng() * 0.1))),
+    jitter: rng() - 0.5,
+  }));
+}
+
+export interface ScorerRow { name: string; clubId: string; goals: number; me: boolean }
+
+/** current top-scorer table including the player */
+export function scorerTable(s: SeasonState, playerName: string): { rows: ScorerRow[]; myRank: number } {
+  const prog = s.rounds.length ? s.roundsPlayed / s.rounds.length : 0;
+  const rows: ScorerRow[] = s.scorers.map((x) => ({ name: x.name, clubId: x.clubId, goals: Math.max(0, Math.floor(x.target * prog + x.jitter * prog + 0.5 * prog)), me: false }));
+  rows.push({ name: playerName, clubId: s.clubId, goals: s.stats.leagueGoals, me: true });
+  rows.sort((a, b) => b.goals - a.goals || (a.me ? -1 : b.me ? 1 : 0));
+  return { rows, myRank: rows.findIndex((r) => r.me) + 1 };
 }

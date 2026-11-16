@@ -54,7 +54,13 @@ window, the season ending, or a pile of unopened packs.
 All randomness goes through a seeded RNG (`engines/util.ts`) whose state is stored in
 the save, so reloading doesn't re-roll outcomes and `npm run sim` is reproducible.
 
-## Balance (200 auto-played careers)
+## Balance
+
+A fresh profile is meant to be humble: with no upgrades, the median career peaks around 65 OVR and its
+best club is a lower top-flight side (rating ~70). Reaching a mid-table top-flight club is a good first run.
+Legacy upgrades and relics are what push later runs to elite clubs and awards.
+
+### Older v2 numbers (before the three-tier pyramid)
 
 | metric | p25 | median | p75 | p90 |
 |---|---|---|---|---|
@@ -78,7 +84,13 @@ about 20% end as Legend or better.
   and they're used up when the career starts (`data/legacy.ts`, `game/meta.ts`).
 - Each month has a **Training ground ↔ Match day** slider: growth vs match rating, involvement, scout
   interest, injury load and recovery. You can play 2 cards per month (more with upgrades).
-- **Promotion & relegation** run every season for your country (`engines/world.ts`).
+- **Promotion & relegation** run every season across your country's pyramid (`engines/world.ts`). The top-5
+  leagues (England, Spain, Italy, Germany, France) have three divisions; every other country has two
+  (now including Ecuador and Greece). Every career starts at a club in the bottom division.
+- **Golden Boot race:** each league has a live top-scorer table with rival forwards; finish top to win it,
+  in any division.
+- **Career finale:** retiring shows your totals, best season, season-by-season table and every milestone
+  broken, with the ones achieved for the first time on your profile highlighted.
 - Visual style: **Terrace** (matchday stickers, scarves, pitch stripes), with ticker-tape, sticker-slap
   goal celebrations, pack tearing and coin toasts (`components/FxLayer.tsx`).
 

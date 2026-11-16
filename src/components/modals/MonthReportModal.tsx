@@ -10,6 +10,13 @@ import { CompBadge, Modal, RatingBadge, ResultPill, Stat } from '../ui';
 import { findFixture, involvementLine, oppLabel } from '../format';
 import { fx } from '../fx';
 
+const STAMP_ORDER: [string, string][] = [
+  ['ballon1', "Ballon d'Or!"], ['natwin1', 'International champions!'], ['contwin1', 'Kings of the continent!'], ['promotop1', 'Up to the top flight!'],
+  ['title1', 'Champions!'], ['boot1', 'Top scorer!'], ['topflight1', 'Top-flight debut!'], ['promo1', 'Promoted!'], ['climb1', 'Moving up!'],
+  ['trophy1', 'Silverware!'], ['award1', 'Award winner!'], ['wc1', 'World Cup!'], ['cap1', 'International debut!'], ['hattrick1', 'First hat-trick!'],
+  ['season20', '20-goal season!'], ['potm1', 'Player of the Month!'], ['goal1', 'First pro goal!'], ['debut', 'Pro debut!'],
+];
+
 export default function MonthReportModal({ reports }: { reports: MonthReport[] }) {
   const { career, closeReports, openMatch } = useGame();
   const first = reports[0];
@@ -18,16 +25,21 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
   const mine = fixtures.filter((f) => f.report && f.report.minutes > 0);
   const goals = mine.reduce((s, f) => s + f.report!.goals, 0);
   const news = reports.flatMap((r) => r.news);
-  const big = news.find((n) => n.includes('PROMOTED') || n.includes('🏆') || n.includes("Ballon d'Or —"));
+  const allCoins = reports.flatMap((r) => r.coins ?? []);
+  const bigOne = STAMP_ORDER.find(([id]) => allCoins.some((e) => e.milestone === id));
+  const firstEverBig = bigOne && allCoins.some((e) => e.milestone === bigOne[0] && e.firstEver);
 
-  // react to what happened
+  // react to what happened: goals first, then the biggest milestone
   useEffect(() => {
     if (!career) return;
-    const t = setTimeout(() => {
-      if (goals > 0) fx({ type: 'goal', text: goals >= 3 ? 'Hat-trick!' : goals === 2 ? 'Brace!' : 'Goal!', sub: `${career.player.name.split(' ').slice(-1)[0]} · ${goals} this ${reports.length > 1 ? 'run' : 'month'}` });
-      else if (big) fx({ type: 'stamp', text: big.includes('PROMOTED') ? 'Promoted!' : big.includes('Ballon') ? "Ballon d'Or!" : 'Champions!', tone: 'sun' });
-    }, 350);
-    return () => clearTimeout(t);
+    const timers: number[] = [];
+    let delay = 350;
+    if (goals > 0) {
+      timers.push(window.setTimeout(() => fx({ type: 'goal', text: goals >= 3 ? 'Hat-trick!' : goals === 2 ? 'Brace!' : 'Goal!', sub: `${career.player.name.split(' ').slice(-1)[0]} · ${goals} this ${reports.length > 1 ? 'run' : 'month'}` }), delay));
+      delay += 2300;
+    }
+    if (bigOne) timers.push(window.setTimeout(() => fx({ type: 'stamp', text: firstEverBig ? `${bigOne[1]} · first ever` : bigOne[1], tone: firstEverBig ? 'red' : 'sun' }), delay));
+    return () => timers.forEach((t) => clearTimeout(t));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -87,7 +99,7 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
         {season && (
           <div className="sticker !bg-sun p-4 -rotate-[.4deg]">
             <span className="tag">Season {seasonLabel(season.year)} complete</span>
-            <div className="text-sm font-bold mt-2">{season.clubs}{season.leaguePos ? ` · ${ordinal(season.leaguePos)} in ${season.leagueName}` : ''}</div>
+            <div className="text-sm font-bold mt-2">{season.clubs}{season.leaguePos ? ` · ${ordinal(season.leaguePos)} in ${season.leagueName}` : ''}{season.scorerRank ? ` · ${ordinal(season.scorerRank)} in the scoring charts` : ''}</div>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-3">
               <Stat label="Apps" value={season.apps} /><Stat label="Goals" value={season.goals} /><Stat label="Assists" value={season.assists} />
               <Stat label="Avg" value={season.avgRating.toFixed(2)} /><Stat label="MOTM" value={season.motm} /><Stat label="Caps" value={season.caps} />
@@ -121,7 +133,7 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
             <div className="eyebrow mb-2">Legacy coins</div>
             {coins.length === 0 ? <p className="text-sm text-muted font-semibold">None this time.</p> : (
               <div className="sticker-flat p-2 space-y-1">
-                {coins.slice(0, 8).map((e, i) => <div key={i} className="flex justify-between text-xs font-bold gap-2"><span className="truncate">{e.milestone ? '★ ' : ''}{e.label}</span><span className="stat-num">+{e.amount}</span></div>)}
+                {[...coins].sort((a, b) => Number(!!b.milestone) - Number(!!a.milestone)).slice(0, 8).map((e, i) => <div key={i} className="flex justify-between text-xs font-bold gap-2"><span className="truncate">{e.milestone ? '★ ' : ''}{e.label}{e.firstEver && <span className="tag !text-[7px] ml-1 !py-0">first ever</span>}</span><span className="stat-num">+{e.amount}</span></div>)}
                 {coins.length > 8 && <div className="text-[10px] text-muted font-bold">+{coins.length - 8} more</div>}
                 <div className="flex justify-between border-t-2 border-ink pt-1 text-sm font-black"><span className="flex items-center gap-1"><span className="coin">c</span>Total</span><span className="stat-num">+{coinTotal}</span></div>
               </div>

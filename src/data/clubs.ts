@@ -1,4 +1,4 @@
-import type { ClubDef, ClubTier, ContinentalSpot, SkillCategory } from '../game/types';
+import type { ClubDef, ClubTier, ContinentalSpot, Division, SkillCategory } from '../game/types';
 
 // Compact authoring format -> expanded ClubDef list.
 // [name, rating, continental]  (tier & prestige derived from rating)
@@ -118,7 +118,7 @@ function secondDivision(country: string): ClubDef[] {
 }
 
 let seq = 0;
-function mkClub(country: string, name: string, rating: number, continental: ContinentalSpot, division: 1 | 2): ClubDef {
+function mkClub(country: string, name: string, rating: number, continental: ContinentalSpot, division: Division): ClubDef {
   seq += 1;
   const prestige = Math.round(Math.min(100, rating + (continental === 'CL' ? 8 : continental === 'EL' ? 3 : 0)));
   return {
@@ -126,7 +126,7 @@ function mkClub(country: string, name: string, rating: number, continental: Cont
     name,
     country,
     rating,
-    tier: division === 2 ? 'Small' : tierFor(rating),
+    tier: division >= 2 ? 'Small' : tierFor(rating),
     prestige,
     wageFactor: +(0.5 + (rating - 60) / 40).toFixed(2),
     continental,
@@ -162,14 +162,74 @@ const EXPANSION_NAMES: Record<string, string[]> = {
 for (const [country, names] of Object.entries(EXPANSION_NAMES)) {
   const existing = CLUBS.filter((club) => club.country === country && club.division === 1).length;
   names.slice(0, Math.max(0, 18 - existing)).forEach((name, index) => {
-    const rating = Math.max(65, 72 - Math.floor(index / 3) + ((name.length + country.length) % 3));
+    const rating = Math.max(70, 74 - Math.floor(index / 3) + ((name.length + country.length) % 3));
     CLUBS.push(mkClub(country, name, rating, 'none', 1));
   });
 }
 
+// ---- lower-league depth: Ecuador & Greece, fuller second tiers, third tiers in the top 5 ----
+const NEW_D1: Record<string, Row[]> = {
+  Ecuador: [
+    ['Independiente del Valle', 75, 'CL'], ['LDU Quito', 74, 'CL'], ['Barcelona SC', 73, 'CL'], ['Emelec', 71, 'EL'],
+    ['Aucas', 68, 'EL'], ['Universidad Católica', 68, 'none'], ['Deportivo Cuenca', 66, 'none'], ['El Nacional', 65, 'none'],
+    ['Orense', 64, 'none'], ['Técnico Universitario', 63, 'none'],
+  ],
+  Greece: [
+    ['Olympiacos', 79, 'CL'], ['PAOK', 78, 'CL'], ['AEK Athens', 77, 'EL'], ['Panathinaikos', 76, 'EL'],
+    ['Aris', 72, 'none'], ['Asteras Tripolis', 68, 'none'], ['OFI Crete', 67, 'none'], ['Atromitos', 67, 'none'],
+    ['Volos', 65, 'none'], ['Panetolikos', 64, 'none'],
+  ],
+};
+for (const [country, rows] of Object.entries(NEW_D1)) rows.forEach(([name, rating, cont]) => CLUBS.push(mkClub(country, name, rating, cont, 1)));
+
+const TOWNS: Record<string, string[]> = {
+  England: ['Harrowgate', 'Millbrook', 'Ravensby', 'Thornhill', 'Castlemere', 'Eastwick', 'Pemberton', 'Oakhurst', 'Saltmarsh', 'Fenwick', 'Langley', 'Brackenford', 'Hollowell', 'Stanmoor'],
+  Spain: ['Alcorán', 'Villanueva', 'Montejo', 'Sierra Alta', 'Benarroyo', 'Castellar', 'Puertollano Sur', 'Torreblanca', 'Valdemar', 'Almedina', 'Robledo', 'Cuevas', 'Fuentesol', 'Peñaroja'],
+  Italy: ['Borgofranco', 'Castelvecchio', 'Montealto', 'Pietrasanta Nord', 'Roccabella', 'Valbruna', 'San Teodoro', 'Fontanella', 'Lagodoro', 'Corvara', 'Terralba', 'Belvedere', 'Rivalta', 'Ponteverde'],
+  Germany: ['Lindenau', 'Birkenfeld', 'Steinbach', 'Rosenheim Süd', 'Waldhausen', 'Eichendorf', 'Bergstadt', 'Neukirchen', 'Falkensee', 'Mühlberg', 'Sonnenfeld', 'Hohenwald', 'Brunnstadt', 'Kaltenbach'],
+  France: ['Beaulieu', 'Montclair', 'Saint-Aubin', 'Valmont', 'Rochefort Nord', 'Châteaubrun', 'Belleville', 'Pontarlier Sud', 'Marsillac', 'Lunel', 'Villefort', 'Clairvaux', 'Mirande', 'Sablons'],
+  Netherlands: ['Oosterwijk', 'Lindehoven', 'Brakel', 'Zandvoort Noord'],
+  Portugal: ['Vila Nova', 'Montalegre', 'Ribeira', 'São Brás'],
+  Brazil: ['Campo Verde', 'Rio Claro', 'Santa Luzia', 'Vila Rica'],
+  Argentina: ['San Martín', 'Villa Hermosa', 'Río Cuarto Sur', 'Los Andes'],
+  USA: ['Riverside', 'Bay City', 'Lakeshore', 'Mountain View'],
+  Mexico: ['Valle Alto', 'San Isidro', 'Puerto Real', 'Las Palmas'],
+  Japan: ['Hikari', 'Minato', 'Aozora', 'Kawabe'],
+  Ecuador: ['Manta', 'Ambato', 'Loja', 'Riobamba', 'Esmeraldas', 'Ibarra', 'Machala', 'Portoviejo', 'Latacunga', 'Quevedo'],
+  Greece: ['Kavala', 'Larissa', 'Xanthi', 'Ioannina', 'Kalamata', 'Chania', 'Serres', 'Veria', 'Trikala', 'Rhodes'],
+};
+const PATTERNS: Record<string, ((t: string) => string)[]> = {
+  England: [(t) => `${t} Town`, (t) => `${t} United`, (t) => `${t} Rovers`, (t) => `${t} Athletic`, (t) => `${t} City`, (t) => `${t} Albion`],
+  Spain: [(t) => `CD ${t}`, (t) => `${t} CF`, (t) => `UD ${t}`, (t) => `Real ${t}`, (t) => `Atlético ${t}`, (t) => `SD ${t}`],
+  Italy: [(t) => `US ${t}`, (t) => `AC ${t}`, (t) => `Calcio ${t}`, (t) => `Virtus ${t}`, (t) => `FC ${t}`, (t) => `SS ${t}`],
+  Germany: [(t) => `SV ${t}`, (t) => `FC ${t}`, (t) => `VfB ${t}`, (t) => `TSV ${t}`, (t) => `SC ${t}`, (t) => `Eintracht ${t}`],
+  France: [(t) => `AS ${t}`, (t) => `FC ${t}`, (t) => `Stade ${t}`, (t) => `Olympique ${t}`, (t) => `US ${t}`, (t) => `Racing ${t}`],
+  Ecuador: [(t) => `Deportivo ${t}`, (t) => `${t} SC`, (t) => `Club ${t}`, (t) => `Atlético ${t}`],
+  Greece: [(t) => `${t} FC`, (t) => `AO ${t}`, (t) => `PAS ${t}`, (t) => `Athletic ${t}`],
+};
+const pattern = (country: string, i: number, town: string) => (PATTERNS[country] ?? [(t: string) => `${t} FC`, (t: string) => `Sporting ${t}`, (t: string) => `${t} United`])[i % (PATTERNS[country]?.length ?? 3)](town);
+
+const THREE_TIER_COUNTRIES = ['England', 'Spain', 'Italy', 'Germany', 'France'];
+for (const country of Object.keys(TOWNS)) {
+  const towns = TOWNS[country];
+  const d2Now = CLUBS.filter((c) => c.country === country && c.division === 2).length;
+  const extraD2 = Math.max(0, 10 - d2Now);
+  let ti = 0;
+  for (let i = 0; i < extraD2 && ti < towns.length; i++, ti++) {
+    const rating = 57 + ((i * 5 + country.length) % 7);
+    CLUBS.push(mkClub(country, pattern(country, i + 2, towns[ti]), rating, 'none', 2));
+  }
+  if (THREE_TIER_COUNTRIES.includes(country)) {
+    for (let i = 0; i < 10 && ti < towns.length; i++, ti++) {
+      const rating = 49 + ((i * 3 + country.length * 2) % 9);
+      CLUBS.push(mkClub(country, pattern(country, i, towns[ti]), rating, 'none', 3));
+    }
+  }
+}
+
 export const CLUB_MAP: Record<string, ClubDef> = Object.fromEntries(CLUBS.map((c) => [c.id, c]));
 
-export function clubsInCountry(country: string, division?: 1 | 2): ClubDef[] {
+export function clubsInCountry(country: string, division?: Division): ClubDef[] {
   return CLUBS.filter((c) => c.country === country && (division ? c.division === division : true));
 }
 

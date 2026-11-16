@@ -3,7 +3,7 @@ import { CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
 import { balanceEffects } from '../data/training';
 import { earn, milestone, volumeMilestones, PER_EVENT } from './coins';
-import { CONT_KO, CUP_ROUNDS, applyToTable, contKnockoutOpponent, cupOpponent, makeFixture, quickResult, tablePosition, buildSeason } from './calendar';
+import { scorerTable, CONT_KO, CUP_ROUNDS, applyToTable, contKnockoutOpponent, cupOpponent, makeFixture, quickResult, tablePosition, buildSeason } from './calendar';
 import { simulateMatch, roleRank } from './match';
 import { monthlyGrowth } from './growth';
 import { addPack } from './cards';
@@ -91,6 +91,13 @@ function recordMatch(c: Career, fx: Fixture) {
   if (fx.comp === 'continental') { milestone(c, 'cont1'); if (r.goals) milestone(c, 'contgoal1'); }
   if (fx.comp === 'national' && r.goals) milestone(c, 'intlgoal1');
   if (fx.compName === 'World Cup') milestone(c, 'wc1');
+  if (fx.comp === 'league') {
+    if (s.division < c.bestDiv) {
+      if (c.bestDiv !== 9) milestone(c, 'climb1');
+      c.bestDiv = s.division;
+    }
+    if (s.division === 1) milestone(c, 'topflight1');
+  }
   if (fx.comp === 'national') {
     st.intlCaps++; st.intlGoals += r.goals; st.intlAssists += r.assists;
     t.caps++; t.intlGoals += r.goals;
@@ -261,7 +268,7 @@ export function playMonth(c: Career): MonthReport {
   }
 
   // ---- reputation, trust, morale, money ----
-  const lgF = getCountry(s.country).leagueRep / 85 * (s.division === 2 ? 0.6 : 1);
+  const lgF = getCountry(s.country).leagueRep / 85 * ([1, 0.6, 0.4][s.division - 1] ?? 0.4);
   const scout = balanceEffects(c.plan.balance).scout * (1 + c.mods.repBonus);
   if (rated.length) gainReputation(c, ((avg - 6.7) * 0.6 * Math.min(rated.length, 4) / 4 + ga * 0.07) * lgF * scout);
   else if (p.reputation > 40) gainReputation(c, -0.2);
@@ -306,6 +313,10 @@ function rollover(c: Career, news: string[]): SeasonSummary {
     caps: st.intlCaps, intlGoals: st.intlGoals, honors: [...s.honors], awards: [...s.awards],
     ovrStart: s.ovrStart, ovrEnd: playerOverall(p),
   };
+  summary.division = s.division;
+  summary.scorerRank = scorerTable(s, p.name).myRank;
+  if (summary.goals >= 20) milestone(c, 'season20');
+  if (s.fixtures.filter((f) => f.comp === 'league' && f.report?.involvement === 'started').length >= 20) milestone(c, 'regular1');
   c.history.push(summary);
   c.pastFixtures = s.fixtures;
 

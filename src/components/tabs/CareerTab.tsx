@@ -48,7 +48,7 @@ export default function CareerTab() {
                     <td className="text-center stat-num">{h.goals}</td>
                     <td className="text-center stat-num">{h.assists}</td>
                     <td className="text-center stat-num">{h.avgRating.toFixed(2)}</td>
-                    <td className="text-center stat-num">{h.leaguePos ? ordinal(h.leaguePos) : '—'}</td>
+                    <td className="text-center stat-num">{h.leaguePos ? ordinal(h.leaguePos) : '—'}<span className="block text-[9px] text-muted font-sans font-bold">{h.leagueName}</span></td>
                     <td className="text-xs text-muted">{[...h.honors.map((x) => `🏆 ${x}`), ...h.awards.map((x) => `⭐ ${x}`)].join(' · ')}{h.caps ? ` · 🌍 ${h.caps} caps` : ''}</td>
                   </tr>
                 ))}

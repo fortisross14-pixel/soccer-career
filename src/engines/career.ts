@@ -33,12 +33,13 @@ export function createCareer(name: string, country: string, position: PositionKe
   const has = (id: string) => setup.relics.includes(id);
 
   const roll = rng();
-  let stars = (roll < 0.06 ? 1 : roll < 0.27 ? 2 : roll < 0.75 ? 3 : roll < 0.94 ? 4 : 5) as 1 | 2 | 3 | 4 | 5;
+  let stars = (roll < 0.15 ? 1 : roll < 0.5 ? 2 : roll < 0.82 ? 3 : roll < 0.96 ? 4 : 5) as 1 | 2 | 3 | 4 | 5;
   const minStars = up('scouting') ? 2 + up('scouting') : 1;
   stars = Math.max(stars, minStars) as typeof stars;
   if (has('hype')) stars = Math.min(5, stars + 1) as typeof stars;
   if (has('chosen')) stars = Math.min(5, stars + 1) as typeof stars;
-  const ranges: Record<number, [number, number]> = { 1: [0.42, 0.54], 2: [0.52, 0.65], 3: [0.62, 0.77], 4: [0.75, 0.89], 5: [0.87, 0.98] };
+  // first runs are humble: most prospects top out in the lower divisions or a modest top-flight side
+  const ranges: Record<number, [number, number]> = { 1: [0.32, 0.42], 2: [0.4, 0.52], 3: [0.5, 0.63], 4: [0.62, 0.76], 5: [0.75, 0.9] };
   const [lo, hi] = ranges[stars];
   const potBonus = [0, 1, 2, 4][up('gifted')] + (has('gene') ? 2 : 0) + (has('chosen') ? 1 : 0);
   const potential = Math.min(1, lo + rng() * (hi - lo) + potBonus * POT_STEP);
@@ -93,6 +94,8 @@ export function createCareer(name: string, country: string, position: PositionKe
     pendingCoins: [],
     coinsEarned: 0,
     world: { div: {} },
+    bestDiv: 9,
+    firstEver: [],
     offers: [],
     decisions: [],
     notices: [],
@@ -120,7 +123,7 @@ export function createCareer(name: string, country: string, position: PositionKe
   if (has('energy')) for (let i = 0; i < 3; i++) c.cards.push({ uid: uid('cd'), defId: 're-ice', isNew: true });
   milestone(c, 'start');
   c.notices = [
-    `You are a ${stars}-star prospect from ${country}. Three clubs want to sign you. Choose your first contract.`,
+    `You are a ${stars}-star prospect from ${country}. Three lower-league clubs want to sign you. Choose your first contract.`,
     'Open your welcome packs in the Cards tab before the season starts.',
   ];
   c.log.unshift({ year: c.year, month: 0, kind: 'milestone', text: `${c.player.name} turns professional at 17 as a ${stars}-star prospect from ${country} (${getCountry(country).leagueName}).` });

@@ -7,7 +7,7 @@ import { CARD_MAP, RARITY_ORDER } from '../../data/cards';
 import { setPlan } from '../../engines/career';
 import { currentRole, injuryRisk } from '../../engines/match';
 import { cardBlocker, playCard, playsPerMonth } from '../../engines/cards';
-import { sortedTable, tablePosition } from '../../engines/calendar';
+import { scorerTable, sortedTable, tablePosition } from '../../engines/calendar';
 import { teamName } from '../../engines/teams';
 import { isWindow } from '../../engines/month';
 import { ordinal } from '../../engines/awards';
@@ -114,6 +114,7 @@ export default function Hub({ goTo }: { goTo: (t: TabId) => void }) {
               <Stat label={p.position === 'GK' ? 'Clean sh.' : 'Goals'} value={p.position === 'GK' ? st.cleanSheets : st.goals} sub={`${st.assists} assists`} tone="sun" />
               <Stat label="Avg rtg" value={avg} sub={`${st.motm} MOTM`} />
             </div>
+            {s.stats.leagueGoals > 0 && (() => { const r = scorerTable(s, p.name).myRank; return <div className={`sticker-flat px-3 py-2 mb-3 text-sm font-bold ${r === 1 ? '!bg-sun' : ''}`}>{r === 1 ? '👟 You lead the Golden Boot race' : `👟 ${ordinal(r)} in the scoring charts`} · {s.stats.leagueGoals} league goals</div>; })()}
             <MiniTable />
           </section>
         )}

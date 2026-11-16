@@ -31,6 +31,7 @@ export interface PositionDef {
   expAssists: number;
 }
 
+export type Division = 1 | 2 | 3;
 export type ClubTier = 'Elite' | 'Strong' | 'Mid' | 'Small' | 'Youth';
 export type ContinentalSpot = 'CL' | 'EL' | 'none';
 
@@ -43,7 +44,7 @@ export interface ClubDef {
   prestige: number;
   wageFactor: number;
   continental: ContinentalSpot;
-  division: 1 | 2;
+  division: Division;
   academyFocus?: SkillCategory;
 }
 
@@ -53,6 +54,8 @@ export interface CountryDef {
   leagueRep: number;
   leagueName: string;
   nationalStrength: number;
+  /** names of the divisions below the top flight */
+  lower: string[];
 }
 
 export interface TraitDef {
@@ -160,13 +163,15 @@ export interface SeasonStats {
   intlCaps: number; intlGoals: number; intlAssists: number;
 }
 
+export interface ScorerRival { name: string; clubId: string; target: number; jitter: number }
+
 export interface SeasonState {
   year: number;
   clubId: string;
   clubName: string;
   country: string;
   leagueName: string;
-  division: 1 | 2;
+  division: Division;
   table: TableRow[];
   rounds: { day: number; pairs: [string, string][] }[];
   roundsPlayed: number;
@@ -177,6 +182,7 @@ export interface SeasonState {
   contAlive: boolean;
   natTournament?: { name: string; alive: boolean; qualified: boolean };
   stats: SeasonStats;
+  scorers: ScorerRival[];
   honors: string[];
   awards: string[];
   ovrStart: number;
@@ -285,13 +291,15 @@ export interface SeasonSummary {
   awards: string[];
   ovrStart: number;
   ovrEnd: number;
+  division?: number;
+  scorerRank?: number;
 }
 
 export interface Honor { label: string; count: number }
 
 export interface LogEntry { year: number; month: number; text: string; kind: 'transfer' | 'trophy' | 'award' | 'national' | 'injury' | 'milestone' | 'card' | 'info' }
 
-export interface CoinEvent { label: string; amount: number; milestone?: string }
+export interface CoinEvent { label: string; amount: number; milestone?: string; firstEver?: boolean }
 
 /** run modifiers granted by legacy upgrades and relics */
 export interface CareerMods {
@@ -327,7 +335,9 @@ export interface Career {
   milestones: string[];
   pendingCoins: CoinEvent[];
   coinsEarned: number;
-  world: { div: Record<string, 1 | 2> };
+  world: { div: Record<string, Division> };
+  bestDiv: number;              // highest level reached (1 = top flight), 9 = none yet
+  firstEver: string[];          // milestones unlocked for the first time on this profile
   offers: Offer[];
   decisions: Decision[];
   notices: string[];            // what's happening this month

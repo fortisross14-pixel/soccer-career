@@ -100,7 +100,7 @@ export default function FxLayer() {
         {toasts.map((t) => (
           <div key={t.id} className="coin-toast sticker px-3 py-2 flex items-center gap-2 text-sm font-extrabold max-w-[280px]">
             <span className="coin">c</span><span className="stat-num">+{t.e.amount}</span><span className="truncate">{t.e.label}</span>
-            {t.e.milestone && <span className="tag tag-sun !text-[8px]">milestone</span>}
+            {t.e.milestone && <span className={`tag !text-[8px] ${t.e.firstEver ? '' : 'tag-sun'}`}>{t.e.firstEver ? 'first ever' : 'milestone'}</span>}
           </div>
         ))}
       </div>

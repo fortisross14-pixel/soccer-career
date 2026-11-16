@@ -1,11 +1,12 @@
-import type { Career, ClubDef, Offer, SquadRole } from '../game/types';
-import { CLUBS, CLUB_MAP, clubsInCountry } from '../data/clubs';
+import type { Career, ClubDef, Division, Offer, SquadRole } from '../game/types';
+import { CLUBS, CLUB_MAP } from '../data/clubs';
 import { getCountry } from '../data/countries';
 import { buildSeason } from './calendar';
 import { currentRole, roleRank, squadRole, ROLE_LABEL } from './match';
 import { playerOverall, potentialOverall } from './overall';
 import { STAFF_PERK } from './perks';
-import { divOf } from './world';
+import { divOf, leagueClubs } from './world';
+import { maxDivision } from '../data/countries';
 import { milestone } from './coins';
 import { chance, clamp, pick, randInt, rng, shuffle, uid } from './util';
 
@@ -64,6 +65,10 @@ export function windowOffers(c: Career, winter: boolean): Offer[] {
     if (out.length >= count) break;
     if (seen.has(club.id)) continue;
     seen.add(club.id);
+    // clubs in a higher division only bid for lower-league players who are clearly ready
+    const curDiv = p.contract ? divOf(c, p.contract.clubId) : 9;
+    const tgtDiv = divOf(c, club.id);
+    if (tgtDiv < curDiv && club.rating > T - 3 - (curDiv - tgtDiv - 1) * 4) continue;
     // clubs avoid signing pure reserves unless young
     const role = squadRole(playerOverall(p), club.rating);
     if (role === 'reserve' && p.age > 21) continue;
@@ -98,21 +103,28 @@ export function loanOffers(c: Career): Offer[] {
   return shuffle(pool).slice(0, randInt(2, 3)).map((cl) => makeOffer(c, cl, 'loan', 'Season-long loan · starter minutes'));
 }
 
-/** opening choice: a starter role at a modest club, a squad role higher up, or a long shot at a giant */
+/** opening choice: lower-league clubs from the bottom of the pyramid */
 export function firstOffers(c: Career): Offer[] {
   const p = c.player;
   const ovr = playerOverall(p);
-  const home = [...clubsInCountry(p.country)].sort((a, b) => a.rating - b.rating);
-  const closest = (target: number, exclude: string[]) => [...home].filter((cl) => !exclude.includes(cl.id)).sort((a, b) => Math.abs(a.rating - target) - Math.abs(b.rating - target))[0];
-  const a = closest(ovr + 4, []);
-  const b = closest(ovr + 11, [a.id]);
-  const giants = home.filter((cl) => divOf(c, cl.id) === 1).slice(-3);
-  const cc = pick(giants.filter((g) => g.id !== a.id && g.id !== b.id)) ?? home[home.length - 1];
-  return [
+  const bottom = maxDivision(p.country);
+  const lowest = [...leagueClubs(c, p.country, bottom)];
+  const above = [...leagueClubs(c, p.country, (bottom - 1) as Division)];
+  const closest = (pool: ClubDef[], target: number, exclude: string[]) => [...pool].filter((cl) => !exclude.includes(cl.id)).sort((a, b) => Math.abs(a.rating - target) - Math.abs(b.rating - target))[0];
+  const a = closest(lowest, ovr + 3, []);
+  const b = closest(lowest, ovr + 8, [a.id]) ?? a;
+  const cc = closest(above, ovr + 12, []) ?? b;
+  const offers = [
     { ...makeOffer(c, a, 'first', 'Play now'), years: 2 },
-    { ...makeOffer(c, b, 'first', 'Fight for a place'), years: 3 },
-    { ...makeOffer(c, cc, 'first', 'Big-club academy gamble'), years: 4 },
+    { ...makeOffer(c, b, 'first', 'Fight for a place'), years: 2 },
+    { ...makeOffer(c, cc, 'first', 'Step up a level'), years: 3 },
   ];
+  // generational talents also get a big-club academy offer
+  if (p.stars >= 5) {
+    const giant = pick(leagueClubs(c, p.country, 1).sort((x, y) => y.rating - x.rating).slice(0, 3));
+    if (giant) offers.push({ ...makeOffer(c, giant, 'first', 'Big-club academy gamble'), years: 4 });
+  }
+  return offers;
 }
 
 function clubInterest(c: Career, o: Offer): number {

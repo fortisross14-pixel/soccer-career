@@ -16,6 +16,7 @@ import MonthReportModal from './modals/MonthReportModal';
 import MatchModal from './modals/MatchModal';
 import DecisionModal from './modals/DecisionModal';
 import PackReveal from './modals/PackReveal';
+import CareerOverModal from './modals/CareerOverModal';
 import { Coin } from './ui';
 
 const TABS = [
@@ -32,6 +33,7 @@ export type TabId = (typeof TABS)[number]['id'];
 export default function Game() {
   const { career, exit, play, reports, matchId, reveal, meta } = useGame();
   const [tab, setTab] = useState<TabId>('hub');
+  const [finaleSeen, setFinaleSeen] = useState(false);
   if (!career) return null;
   const c = career;
   const p = c.player;
@@ -90,7 +92,7 @@ export default function Game() {
             </div>
           </div>
           {c.retired ? (
-            <button className="btn-sun" onClick={exit}>Main menu</button>
+            <><button className="btn-white hidden sm:inline-flex" onClick={() => setFinaleSeen(false)}>Career summary</button><button className="btn-sun" onClick={exit}>Main menu</button></>
           ) : (
             <>
               <button className="btn-white hidden sm:inline-flex" disabled={!!blocker} onClick={() => play(true)} title="Play months until something needs your attention">Sim to event ⏩</button>
@@ -104,6 +106,7 @@ export default function Game() {
       {reports && <MonthReportModal reports={reports} />}
       {matchId && <MatchModal id={matchId} />}
       {reveal && <PackReveal cards={reveal} />}
+      {c.retired && !finaleSeen && !reports && <CareerOverModal onClose={() => setFinaleSeen(true)} />}
     </div>
   );
 }

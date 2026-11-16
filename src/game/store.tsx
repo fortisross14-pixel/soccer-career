@@ -45,6 +45,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (c.retired && !c.legacy) { finalizeRetirement(c); addToHof(c); }
     if (c.pendingCoins.length) {
       const events = c.pendingCoins;
+      for (const e of events) {
+        if (e.milestone && !metaRef.current.milestones[e.milestone] && !c.firstEver.includes(e.milestone)) {
+          e.firstEver = true;
+          c.firstEver.push(e.milestone);
+        }
+      }
       c.pendingCoins = [];
       setMeta(creditCoins(metaRef.current, events));
       if (!quietCoins) fx({ type: 'coins', events });

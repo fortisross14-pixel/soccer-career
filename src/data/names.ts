@@ -10,6 +10,8 @@ const NAMES: Record<string, { first: string[]; last: string[] }> = {
   Argentina: { first: ['Santiago','Mateo','Lautaro','Tomás','Valentín','Facundo','Julián','Franco'], last: ['Acosta','Ferreyra','Quiroga','Benítez','Paredes','Roldán','Sosa','Medina'] },
   USA: { first: ['Ethan','Noah','Liam','Caleb','Tyler','Jordan','Miles','Cameron'], last: ['Brooks','Reed','Foster','Hayes','Bennett','Coleman','Turner','Price'] },
   Mexico: { first: ['Diego','Emiliano','Santiago','Sebastián','Gael','Rodrigo','Javier','Mateo'], last: ['Hernández','Cortés','Salazar','Esquivel','Montoya','Treviño','Valdés','Zamora'] },
+  Ecuador: { first: ['Kevin','Jordy','Byron','Ángel','Moisés','Jhegson','Piero','Willian'], last: ['Caicedo','Estupiñán','Plata','Hincapié','Preciado','Arboleda','Mena','Quiñónez'] },
+  Greece: { first: ['Giorgos','Dimitris','Kostas','Nikos','Giannis','Christos','Vangelis','Petros'], last: ['Papadakis','Karagounis','Nikolaou','Vlachos','Andreou','Christodoulou','Mavros','Galanis'] },
   Japan: { first: ['Haruto','Ren','Kaito','Sota','Yuto','Riku','Takumi','Daichi'], last: ['Sato','Nakamura','Kobayashi','Watanabe','Ito','Yamamoto','Matsuda','Fujimoto'] },
 };
 

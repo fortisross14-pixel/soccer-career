@@ -5,7 +5,9 @@ import { addPack } from './cards';
 import { playerOverall } from './overall';
 import { chance, clamp, noise } from './util';
 import { earn, milestone, PER_EVENT } from './coins';
-import { promoteRelegate } from './world';
+import { promoteRelegate, leagueRepFor } from './world';
+import { leagueNameFor } from '../data/countries';
+import { scorerTable } from './calendar';
 import { teamName } from './teams';
 
 export function addHonor(list: Honor[], label: string) {
@@ -49,15 +51,17 @@ export function endLeagueSeason(c: Career): string[] {
 
   // promotion & relegation
   const order = sortedTable(s.table).map((r) => r.clubId);
-  const pr = promoteRelegate(c, s.country, s.division === 1 ? order : null, s.division === 2 ? order : null);
+  const pr = promoteRelegate(c, s.country, s.division, order);
   if (pr.up.includes(s.clubId)) {
-    news.push(`⬆️ PROMOTED! ${s.clubName} go up to the top flight.`);
-    s.awards.push('Promotion');
+    const to = leagueNameFor(s.country, s.division - 1);
+    news.push(`⬆️ PROMOTED! ${s.clubName} go up to the ${to}.`);
+    s.awards.push(`Promotion to ${to}`);
     milestone(c, 'promo1'); earn(c, 'Promotion', 50);
+    if (s.division - 1 === 1) milestone(c, 'promotop1');
     addPack(c, 'gold', 'Promotion');
     p.morale = clamp(p.morale + 10, 0, 100);
   } else if (pr.down.includes(s.clubId)) {
-    news.push(`⬇️ Relegated. ${s.clubName} drop to the second division.`);
+    news.push(`⬇️ Relegated. ${s.clubName} drop to the ${leagueNameFor(s.country, s.division + 1)}.`);
     p.morale = clamp(p.morale - 12, 0, 100);
   }
   const others = [...pr.up, ...pr.down].filter((id) => id !== s.clubId);
@@ -71,14 +75,18 @@ export function endLeagueSeason(c: Career): string[] {
   // league awards (based on league stats only)
   const leagueGames = s.rounds.length;
   const scale = leagueGames / 34;
-  const rep = country.leagueRep;
+  const rep = leagueRepFor(country.leagueRep, s.division);
   const avg = st.leagueRated ? st.leagueRatingSum / st.leagueRated : 0;
   const regular = st.leagueApps >= leagueGames * 0.55;
   const topFlight = s.division === 1;
   const awards: string[] = [];
-  const bootLine = Math.round((17 + (rep - 68) * 0.2 + noise() * 2.5) * scale);
+  const race = scorerTable(s, p.name);
+  const rivalBest = Math.max(...s.scorers.map((x) => x.target));
   const assistLine = Math.round((11 + (rep - 68) * 0.12 + noise() * 1.5) * scale);
-  if (st.leagueGoals >= bootLine && st.leagueGoals >= 8) awards.push(`${s.leagueName} Golden Boot`);
+  if (st.leagueGoals >= 6 && (st.leagueGoals > rivalBest || (st.leagueGoals === rivalBest && chance(0.5)))) {
+    awards.push(`${s.leagueName} Golden Boot`);
+    milestone(c, 'boot1');
+  } else if (st.leagueGoals >= 5) news.push(`You finish ${ordinal(race.myRank)} in the ${s.leagueName} scoring charts with ${st.leagueGoals}.`);
   if (st.leagueAssists >= assistLine && st.leagueAssists >= 6) awards.push(`${s.leagueName} Playmaker`);
   if (regular && avg >= 7.25 && chance(0.65)) awards.push('Team of the Season');
   if (regular && avg >= 7.55 && pos <= 3 && topFlight && ovr >= rep - 6 && chance(0.55)) awards.push(`${s.leagueName} Player of the Season`);

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useGame } from '../../game/store';
 import type { Offer } from '../../game/types';
 import { CLUB_MAP } from '../../data/clubs';
-import { getCountry } from '../../data/countries';
 import { acceptOffer, pushOffer, rejectOffer, type PushAsk } from '../../engines/market';
 import { canRequestLoan, requestLoan, requestTransfer } from '../../engines/career';
 import { currentRole, roleRank } from '../../engines/match';
@@ -10,7 +9,7 @@ import { continentalName } from '../../engines/calendar';
 import { isWindow } from '../../engines/month';
 import { playerOverall } from '../../engines/overall';
 import { fmtMoney } from '../../engines/util';
-import { divLabel, divOf } from '../../engines/world';
+import { clubLeague, divOf, tierLabel } from '../../engines/world';
 import { RoleBadge, SectionTitle, Stat, EmptyState } from '../ui';
 
 export default function Contract() {
@@ -31,7 +30,7 @@ export default function Contract() {
         <SectionTitle kicker="Current deal" title={club ? club.name : 'Free agent'} right={ct?.parentClubId ? <span className="pill border-ink text-sky">On loan from {CLUB_MAP[ct.parentClubId].name}</span> : undefined} />
         {ct && club ? (
           <>
-            <div className="text-sm text-muted mb-4">{getCountry(club.country).leagueName}{divLabel(c, club.id)} · club rating <span className="stat-num text-ink">{club.rating}</span> · your OVR <span className="stat-num text-ink">{playerOverall(p)}</span></div>
+            <div className="text-sm text-muted mb-4">{clubLeague(c, club.id)} ({tierLabel(divOf(c, club.id))}) · club rating <span className="stat-num text-ink">{club.rating}</span> · your OVR <span className="stat-num text-ink">{playerOverall(p)}</span></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Stat label="Wage" value={fmtMoney(ct.wage)} sub="per year" />
               <Stat label="Contract" value={`${ct.yearsLeft} yr`} sub={`ends June ${c.year + ct.yearsLeft}`} />
@@ -75,7 +74,6 @@ export function OffersList({ onMsg }: { onMsg?: (m: string) => void }) {
     <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
       {c.offers.map((o) => {
         const club = CLUB_MAP[o.clubId];
-        const country = getCountry(club.country);
         const cont = divOf(c, club.id) === 1 && club.division === 1 && club.continental !== 'none' ? continentalName(club.country, club.continental) : null;
         const kindLabel = o.kind === 'renewal' ? 'Contract extension' : o.kind === 'loan' ? 'Loan offer' : o.kind === 'first' ? 'First pro contract' : 'Transfer offer';
         const better = curClub ? club.rating - curClub.rating : 0;
@@ -84,8 +82,8 @@ export function OffersList({ onMsg }: { onMsg?: (m: string) => void }) {
             <div className="flex justify-between text-[10px] uppercase tracking-[.14em] font-bold text-muted"><span>{kindLabel}</span>{o.note && <span className="text-[#c65d00] normal-case tracking-normal">{o.note}</span>}</div>
             <div className="flex items-start justify-between mt-2 gap-2">
               <div className="min-w-0">
-                <div className="font-display text-2xl uppercase leading-tight truncate">{club.name}</div>
-                <div className="text-xs text-muted truncate">{country.leagueName}{divLabel(c, club.id)} · {club.country}</div>
+                <div className="font-display text-lg uppercase leading-[1.05] break-words">{club.name}</div>
+                <div className="text-xs text-muted truncate">{clubLeague(c, club.id)} · {club.country}</div>
               </div>
               <div className="text-right">
                 <div className="stat-num text-2xl text-ink">{club.rating}</div>
