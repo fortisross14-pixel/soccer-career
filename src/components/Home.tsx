@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { installState, onInstallChange, promptInstall } from '../game/install';
 import type { PositionKey } from '../game/types';
 import { useGame } from '../game/store';
 import { allSlots, backupMeta, deleteSlot, exportSlot, firstFreeSlot, importToSlot, legacySaveCount, loadHof, restoreBackup, slotOccupied } from '../game/save';
@@ -28,12 +29,15 @@ export default function Home() {
           <div>
             <div className="tag tag-sun mb-3">Football career roguelike</div>
             <h1 className="h-outline text-5xl sm:text-7xl leading-[.9]">The Eleventh</h1>
-            <p className="on-grass font-semibold mt-3 max-w-lg">Join an academy at 11, turn pro, play your career month by month, and earn legacy coins from every milestone to make your next run stronger.</p>
+            <p className="on-grass font-semibold mt-3 max-w-lg">Join an academy at 11, turn pro, play your career quarter by quarter, and earn legacy coins from every milestone to make your next run stronger.</p>
           </div>
+          <div className="flex flex-col items-end gap-3">
+          <InstallButton />
           <div className="sticker !bg-sun px-4 py-3 rotate-[-2deg]">
             <div className="text-[10px] uppercase tracking-[.14em] font-black">Legacy coins</div>
             <div className="stat-num text-3xl flex items-center gap-2"><Coin />{meta.coins.toLocaleString('en-US')}</div>
             <div className="text-[10px] font-bold">{meta.lifetime.toLocaleString('en-US')} earned · {meta.careers} careers</div>
+          </div>
           </div>
         </header>
 
@@ -49,6 +53,28 @@ export default function Home() {
           {tab === 'hof' && <HofTab />}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** install as an app: the real prompt where the browser offers one, otherwise the steps */
+function InstallButton() {
+  const [state, setState] = useState(installState());
+  const [help, setHelp] = useState(false);
+  useEffect(() => onInstallChange(() => setState(installState())), []);
+  if (state === 'standalone') return null;
+  const android = /android/i.test(navigator.userAgent);
+  return (
+    <div className="relative">
+      <button className="btn-white btn-sm" onClick={async () => { if (state === 'ready') { await promptInstall(); setState(installState()); } else setHelp(!help); }}>📲 Install app</button>
+      {help && (
+        <div className="sticker absolute right-0 top-full mt-2 z-40 w-[min(300px,80vw)] p-3 text-xs font-semibold text-left">
+          {state === 'ios' ? <>In Safari, tap <b>Share</b> (the square with an arrow), then <b>Add to Home Screen</b>.</>
+            : android ? <>In Chrome, open the <b>⋮</b> menu and tap <b>Add to Home screen</b> (or <b>Install app</b>), then <b>Install</b>.</>
+            : <>In Chrome or Edge, open the <b>⋮</b> menu, then <b>Cast, save and share → Install page as app</b> (Edge: <b>Apps → Install this site as an app</b>).</>}
+          <div className="text-[10px] text-muted mt-1.5">Your saves stay the same: the app and this page share them.</div>
+        </div>
+      )}
     </div>
   );
 }

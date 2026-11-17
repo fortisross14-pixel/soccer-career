@@ -172,6 +172,13 @@ Old saves must keep working after every update:
   built game, visits every tab, plays a month and reloads, and also checks saving works when localStorage is full. Both run in the deploy workflow, so a build that breaks old saves never ships.
 - After each release, add its saves: `npm run fixtures -- <short-commit-hash>`.
 
+## Install as an app
+
+`public/manifest.webmanifest` (id and scope `/soccer-career/`, so it doesn't clash with other apps on the shared
+`github.io` origin) and a network-first service worker (`public/sw.js`) make the game installable and playable
+offline. The home screen has an Install button (`src/game/install.ts`): it fires the browser's install prompt where
+one is offered, otherwise it shows the menu steps (Chrome, Edge, Android, iOS Safari).
+
 ## Deploy
 
 Pushing to `main` triggers `.github/workflows/deploy.yml` (GitHub Pages, base `/soccer-career/`).

@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { initStorage, kvKeys } from './game/storage';
+import { initInstall } from './game/install';
+
+initInstall();
 
 // load saves from IndexedDB before the first render
 void initStorage().then(() => {
