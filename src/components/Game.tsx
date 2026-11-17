@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import Crest from './Crest';
+import { clubStyle } from '../data/crests';
 import { useGame } from '../game/store';
 import { CLUB_MAP } from '../data/clubs';
 import { POSITION_MAP } from '../data/positions';
 import { displayOverall, potentialOverall } from '../engines/overall';
 import { canPlay, seasonLabel } from '../engines/month';
-import { MONTHS_LONG, calYear, fmtMoney } from '../engines/util';
+import { MONTHS, MONTHS_LONG, calYear, fmtMoney } from '../engines/util';
 import Hub from './tabs/Hub';
 import Fixtures from './tabs/Fixtures';
 import Competitions from './tabs/Competitions';
@@ -40,15 +42,18 @@ export default function Game() {
   const ovr = displayOverall(p);
   const pot = potentialOverall(p);
   const club = p.contract ? CLUB_MAP[p.contract.clubId] : null;
+  const myClubId = c.academy?.clubId ?? p.contract?.clubId ?? null;
+  const myStyle = myClubId && CLUB_MAP[myClubId] ? clubStyle(CLUB_MAP[myClubId].name) : null;
   const blocker = canPlay(c);
   const monthHasMatches = c.season?.fixtures.some((f) => !f.played && Math.floor(f.day / 30) === c.month);
 
   return (
     <div className="min-h-screen pb-28">
       <header className="sticky top-0 z-30 bg-bone border-b-[3px] border-ink">
-        <div className="scarf !h-2.5 !border-b-2" />
+        <div className="scarf !h-2.5 !border-b-2" style={myStyle ? { background: `repeating-linear-gradient(90deg, ${myStyle.primary} 0 26px, ${myStyle.secondary} 26px 36px, ${myStyle.accent ?? '#121212'} 36px 46px, ${myStyle.secondary} 46px 56px)` } : undefined} />
         <div className="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-3 sm:gap-4">
           <button onClick={exit} className="w-10 h-10 shrink-0 rounded-lg bg-red text-white border-2 border-ink shadow-[2px_2px_0_#121212] grid place-items-center font-display text-lg" title="Main menu" aria-label="Main menu">XI</button>
+          {myClubId && <Crest clubId={myClubId} size={40} className="hidden min-[420px]:block" />}
           <div className="min-w-0 flex-1">
             <div className="font-display text-lg sm:text-2xl uppercase leading-none truncate">{p.name}</div>
             <div className="text-[11px] sm:text-xs text-muted font-bold truncate mt-1">{POSITION_MAP[p.position].short} · {c.academy ? `${CLUB_MAP[c.academy.clubId].name} academy` : club?.name ?? (p.age < 17 ? 'No academy' : 'Free agent')} · Age {p.age} · {MONTHS_LONG[c.month]} {calYear(c.year, c.month)}</div>
@@ -85,7 +90,7 @@ export default function Game() {
 
       <div className="fixed bottom-0 inset-x-0 z-30 bg-ink text-white border-t-[3px] border-ink">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="flex-1 min-w-0">
+          <div className={`flex-1 min-w-0 ${blocker || c.retired ? "" : "hidden min-[520px]:block"}`}>
             <div className="text-[10px] uppercase tracking-[.16em] text-sun font-black">{c.retired ? 'Full time' : `Season ${seasonLabel(c.year)}`}</div>
             <div className="text-sm font-bold truncate">
               {c.retired ? `${c.legacy?.tier} · ${c.legacy?.score} legacy pts · ${c.coinsEarned} coins earned` : blocker ?? (monthHasMatches ? `${MONTHS_LONG[c.month]}: matches to play` : `${MONTHS_LONG[c.month]}: no fixtures, training and recovery`)}
@@ -95,8 +100,9 @@ export default function Game() {
             <><button className="btn-white hidden sm:inline-flex" onClick={() => setFinaleSeen(false)}>Career summary</button><button className="btn-sun" onClick={exit}>Main menu</button></>
           ) : (
             <>
-              <button className="btn-white hidden sm:inline-flex" disabled={!!blocker} onClick={() => play(true)} title="Play months until something needs your attention">{c.academy ? 'Sim season ⏩' : 'Sim to event ⏩'}</button>
-              <button className="btn-red !px-5 !py-3" disabled={!!blocker} onClick={() => play(false)}>Play {MONTHS_LONG[c.month]} →</button>
+              <button className="btn-white btn-sm !px-2.5 whitespace-nowrap" disabled={!!blocker} onClick={() => play('month')} title={`Play only ${MONTHS_LONG[c.month]}`}>1 month</button>
+              <button className="btn-white btn-sm !px-2.5 whitespace-nowrap" disabled={!!blocker} onClick={() => play('season')} title="Play through to July and the summer window. Decisions still stop the sim.">Season ⏩</button>
+              <button className="btn-red !px-4 sm:!px-5 !py-3 whitespace-nowrap flex-1 min-[520px]:flex-none" disabled={!!blocker} onClick={() => play('quarter')} title="Play to the end of the quarter. Packs are handed out at the end of each quarter.">Play {turnLabel(c.month)} →</button>
             </>
           )}
         </div>
@@ -109,6 +115,12 @@ export default function Game() {
       {c.retired && !finaleSeen && !reports && <CareerOverModal onClose={() => setFinaleSeen(true)} />}
     </div>
   );
+}
+
+/** months covered by a quarter turn starting now, e.g. "Oct–Dec" or "Nov–Dec" */
+function turnLabel(m: number): string {
+  const end = m + (2 - (m % 3));
+  return end === m ? MONTHS[m] : `${MONTHS[m]}–${MONTHS[end]}`;
 }
 
 function HudNum({ label, value, tone }: { label: string; value: React.ReactNode; tone?: 'sun' | 'red' }) {

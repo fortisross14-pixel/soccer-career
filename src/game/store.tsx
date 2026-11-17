@@ -20,7 +20,8 @@ interface Ctx {
   exit: () => void;
   /** run an engine mutation on a copy of the career, then persist it */
   act: <T>(fn: (c: Career) => T) => T;
-  play: (toEvent: boolean) => void;
+  /** month: one month · quarter: to the end of the calendar quarter · season: through to the summer (July) */
+  play: (mode: PlayMode) => void;
   reports: MonthReport[] | null;
   closeReports: () => void;
   matchId: string | null;
@@ -28,6 +29,8 @@ interface Ctx {
   reveal: CardInstance[] | null;
   setReveal: (cards: CardInstance[] | null) => void;
 }
+
+export type PlayMode = 'month' | 'quarter' | 'season';
 
 const GameCtx = createContext<Ctx | null>(null);
 
@@ -105,17 +108,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const exit = () => { ref.current = null; slotRef.current = null; setCareer(null); setSlot(null); setReports(null); setMatchId(null); };
 
-  const play = (toEvent: boolean) => {
+  const play = (mode: PlayMode) => {
     if (!ref.current) return;
     const c = structuredClone(ref.current);
     seedRng(c.rng);
     const list: MonthReport[] = [];
-    const packsAtStart = c.packs.length;
-    for (let i = 0; i < (toEvent ? 12 : 1); i++) {
+    for (let i = 0; i < 12; i++) {
       if (canPlay(c)) break;
+      const playedMonth = c.month;
       const r = enginePlayMonth(c);
       list.push(r);
-      if (c.retired || c.decisions.length || r.seasonEnd || (isWindow(c.month) && ((!c.academy && c.month !== 1) || c.offers.length > 0)) || (!c.academy && packsAtStart < 6 && c.packs.length >= 6)) break;
+      if (mode === 'month' || c.retired || c.decisions.length || r.seasonEnd) break;
+      // a season sim runs straight through to the summer; shorter turns stop when a window opens with offers
+      if (mode !== 'season' && isWindow(c.month) && ((!c.academy && c.month !== 1) || c.offers.length > 0)) break;
+      if (mode === 'quarter' && playedMonth % 3 === 2) break;
     }
     c.rng = rngState();
     // coins earned while playing are shown inside the month report instead of as toasts

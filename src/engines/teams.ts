@@ -12,10 +12,18 @@ export function academyId(clubId: string, age: number): string {
   return `acad:${clubId}:${age}`;
 }
 
-function parseAcad(id: string): { clubId: string; age: number } | null {
+export function parseAcad(id: string): { clubId: string; age: number } | null {
   if (!id.startsWith('acad:')) return null;
   const [, clubId, age] = id.split(':');
   return { clubId, age: Number(age) };
+}
+
+/** the club behind a team id, for its badge (youth sides use their club's) */
+export function crestClubId(id: string): string | null {
+  if (id.startsWith('nat:')) return null;
+  if (CLUB_MAP[id]) return id;
+  const a = parseAcad(id);
+  return a && CLUB_MAP[a.clubId] ? a.clubId : null;
 }
 
 /** academy age groups: U14 (11-14), U17 (15-17), U20 (18-19) */

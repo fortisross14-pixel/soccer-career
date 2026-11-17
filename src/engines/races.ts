@@ -3,6 +3,7 @@ import { realisticName } from '../data/names';
 import { CLUB_MAP } from '../data/clubs';
 import { clamp, chance, noise, rng, weightedPick } from './util';
 import { teamName } from './teams';
+import { aggregate } from './statline';
 
 // ------------------------------------------------------------
 // Award races for every competition the player is in: scorers,
@@ -21,12 +22,14 @@ export function groupOf(pos: PositionKey): PosGroup {
   return 'MID';
 }
 
-export interface RaceRival { name: string; team: string; target: number; jitter: number }
+export interface RaceRival { name: string; team: string; target: number; jitter: number; mins?: number }
+export type RaceStat = 'assists' | 'tackles' | 'dribbles' | 'cleanSheets';
 export interface Race {
   id: string;
   comp: CompKind;
   compName: string;
-  kind: 'goals' | 'rating';
+  kind: 'goals' | 'rating' | 'stat';
+  stat?: RaceStat;      // for stat leaderboards (no award, just a ranking)
   label: string;        // award name
   group?: PosGroup;     // for best-by-position races
   rivals: RaceRival[];
@@ -90,12 +93,43 @@ export function leagueRaces(c: Career, s: SeasonState, peerIds: string[], qualit
   const races: Race[] = [
     goalsRace('lg-goals', 'league', lname, `${lname} Golden Boot`, ctx, leader, start, end, starGoals),
     ratingRace('lg-mvp', 'league', lname, `${lname} Player of the Season`, ctx, lift + 7.5 + noise() * 0.2, start, end, minApps, undefined, starRating.slice(0, 3)),
+    ...statRaces(s, peerIds, quality),
   ];
   const base: Record<PosGroup, number> = { GK: 7.25, DEF: 7.22, MID: 7.3, FWD: 7.35 };
   for (const g of ['GK', 'DEF', 'MID', 'FWD'] as PosGroup[]) {
     races.push(ratingRace(`lg-${g}`, 'league', lname, `${lname} Best ${GROUP_LABEL[g]}`, ctx, lift + base[g] + noise() * 0.15, start, end, minApps, g, starRating.filter((_, i) => groupOf(stars[i].pos) === g)));
   }
   return races;
+}
+
+/**
+ * Stat leaderboards for a league: assists, tackles, dribbles, clean sheets.
+ * Rival totals scale with league quality; each rival also has a minutes total
+ * so the board can be read per 90 minutes.
+ */
+export const STAT_BOARDS: { stat: RaceStat; label: string; per90: number; group?: PosGroup }[] = [
+  { stat: 'assists', label: 'Most assists', per90: 0.36 },
+  { stat: 'tackles', label: 'Most tackles', per90: 3.3 },
+  { stat: 'dribbles', label: 'Most dribbles', per90: 2.7 },
+  { stat: 'cleanSheets', label: 'Most clean sheets', per90: 0.45, group: 'GK' },
+];
+
+export function statRaces(s: SeasonState, peerIds: string[], quality: number): Race[] {
+  const ctx: Ctx = { country: s.country, teams: peerIds.filter((id) => id !== s.clubId), usTeam: s.clubId };
+  const n = s.rounds.length;
+  const start = s.rounds[0]?.day ?? 36;
+  const end = s.rounds[n - 1]?.day ?? 318;
+  // youth players are far less developed, so youth numbers sit lower
+  const q = s.youth ? 0.5 : clamp(0.85 + (quality - 70) * 0.01, 0.75, 1.15);
+  return STAT_BOARDS.map((b) => {
+    const ladder = goalLadder(1000, pickMode()).map((x) => x / 1000);
+    const rs = rivals(ctx, ladder, `st-${b.stat}`).map((r, i) => {
+      const mins = Math.round(n * 90 * (0.72 + rng() * 0.22));
+      const per90 = b.per90 * q * ladder[i] * (0.93 + rng() * 0.14);
+      return { ...r, target: Math.max(1, Math.round((per90 * mins) / 90)), mins };
+    }).sort((x, y) => y.target - x.target);
+    return { id: `lg-st-${b.stat}`, comp: 'league' as CompKind, compName: s.leagueName, kind: 'stat' as const, stat: b.stat, label: `${s.leagueName} · ${b.label}`, group: b.group, rivals: rs, start, end, minApps: 0 };
+  });
 }
 
 export function cupRaces(s: SeasonState, cupName: string, peerIds: string[]): Race[] {
@@ -127,8 +161,14 @@ export function tournamentRaces(s: SeasonState, name: string, nations: string[])
 
 export interface RaceRow { name: string; team: string; value: number; me: boolean }
 
-function myValue(s: SeasonState, race: Race): { value: number; apps: number } {
+const p90 = (v: number, mins: number) => (mins > 0 ? Math.round((v / mins) * 90 * 100) / 100 : 0);
+
+function myValue(s: SeasonState, race: Race): { value: number; apps: number; mins?: number } {
   const st = s.stats;
+  if (race.kind === 'stat') {
+    const line = aggregate(s.fixtures.filter((f) => f.comp === 'league' && f.played));
+    return { value: race.stat === 'assists' ? st.leagueAssists : line[race.stat!] ?? 0, apps: line.apps, mins: line.minutes };
+  }
   const avg = (sum: number, n: number) => (n ? Math.round((sum / n) * 100) / 100 : 0);
   switch (race.comp) {
     case 'league': return race.kind === 'goals' ? { value: st.leagueGoals, apps: st.leagueApps } : { value: avg(st.leagueRatingSum, st.leagueRated), apps: st.leagueRated };
@@ -143,18 +183,23 @@ export function raceProgress(race: Race, day: number): number {
 }
 
 /** standings: rivals' numbers so far plus you (if the race is for your position) */
-export function raceRows(c: Career, s: SeasonState, race: Race, day = c.month * 30): { rows: RaceRow[]; myRank: number | null; eligible: boolean; mine: number } {
+export function raceRows(c: Career, s: SeasonState, race: Race, day = c.month * 30, per90 = false): { rows: RaceRow[]; myRank: number | null; eligible: boolean; mine: number } {
   const prog = raceProgress(race, day);
-  const rows: RaceRow[] = race.rivals.map((r) => ({
-    name: r.name, team: r.team, me: false,
-    value: race.kind === 'goals'
-      ? Math.max(0, Math.floor(r.target * prog + r.jitter * prog + 0.5 * prog))
-      : prog <= 0 ? 0 : Math.round((r.target + r.jitter * 0.6 * (1 - prog)) * 100) / 100,
-  }));
+  const rows: RaceRow[] = race.rivals.map((r) => {
+    const total = race.kind === 'rating' ? 0 : Math.max(0, Math.floor(r.target * prog + r.jitter * prog + 0.5 * prog));
+    return {
+      name: r.name, team: r.team, me: false,
+      value: race.kind === 'stat' && per90 ? p90(total, (r.mins ?? 2700) * prog)
+        : race.kind !== 'rating' ? total
+        : prog <= 0 ? 0 : Math.round((r.target + r.jitter * 0.6 * (1 - prog)) * 100) / 100,
+    };
+  });
   const mineV = myValue(s, race);
-  const forMe = !race.group || race.group === groupOf(c.player.position);
-  const eligible = race.kind === 'goals' || mineV.apps >= Math.ceil(race.minApps * Math.max(prog, 0.15));
-  if (forMe) rows.push({ name: c.player.name, team: s.clubName, value: mineV.value, me: true });
+  const forMe = !race.group || race.group === groupOf(c.player.position) || (race.stat === 'cleanSheets' && groupOf(c.player.position) === 'DEF');
+  const possible = s.roundsPlayed * 90;
+  const eligible = race.kind === 'goals' || (race.kind === 'stat' ? !per90 || (mineV.mins ?? 0) >= possible * 0.3 : mineV.apps >= Math.ceil(race.minApps * Math.max(prog, 0.15)));
+  const myVal = race.kind === 'stat' && per90 ? p90(mineV.value, mineV.mins ?? 0) : mineV.value;
+  if (forMe && (eligible || race.kind !== 'stat')) rows.push({ name: c.player.name, team: s.clubName, value: myVal, me: true });
   rows.sort((a, b) => b.value - a.value || (a.me ? -1 : b.me ? 1 : 0));
   const idx = rows.findIndex((r) => r.me);
   return { rows, myRank: idx >= 0 ? idx + 1 : null, eligible, mine: mineV.value };
@@ -167,7 +212,7 @@ export function decideRaces(c: Career, s: SeasonState, comps: CompKind[]): { won
   for (const race of s.races ?? []) {
     if (!comps.includes(race.comp)) continue;
     const forMe = !race.group || race.group === groupOf(c.player.position);
-    if (!forMe) continue;
+    if (!forMe || race.kind === 'stat') continue;
     const mine = myValue(s, race);
     const best = Math.max(...race.rivals.map((r) => r.target));
     const enoughApps = race.kind === 'goals' ? mine.value >= (race.comp === 'league' ? 4 : 2) : mine.apps >= race.minApps;

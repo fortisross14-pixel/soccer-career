@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import Crest from '../Crest';
+import { fx } from '../fx';
 import { useGame } from '../../game/store';
 import type { Offer } from '../../game/types';
 import { CLUB_MAP } from '../../data/clubs';
@@ -100,7 +102,8 @@ export function OffersList({ onMsg }: { onMsg?: (m: string) => void }) {
           <div key={o.uid} className={`rounded-xl border p-4 flex flex-col ${o.kind === 'renewal' ? 'border-ink bg-[#e6f8ee]' : 'border-ink bg-white'}`}>
             <div className="flex justify-between text-[10px] uppercase tracking-[.14em] font-bold text-muted"><span>{kindLabel}</span>{o.note && <span className="text-[#c65d00] normal-case tracking-normal">{o.note}</span>}</div>
             <div className="flex items-start justify-between mt-2 gap-2">
-              <div className="min-w-0">
+              <Crest clubId={club.id} size={40} />
+              <div className="min-w-0 flex-1">
                 <div className="font-display text-lg uppercase leading-[1.05] break-words">{club.name}</div>
                 <div className="text-xs text-muted truncate">{clubLeague(c, club.id)} · {club.country}</div>
               </div>
@@ -129,7 +132,11 @@ export function OffersList({ onMsg }: { onMsg?: (m: string) => void }) {
                 </div>
               )}
               <div className="flex gap-2">
-                <button className="btn-red flex-1" onClick={() => { const m = act((x) => acceptOffer(x, o.uid)); onMsg?.(m); }}>Sign</button>
+                <button className="btn-red flex-1" onClick={() => {
+                  const { m, ok } = act((x) => { const msg = acceptOffer(x, o.uid); return { m: msg, ok: x.player.contract?.clubId === o.clubId || x.academy?.clubId === o.clubId }; });
+                  onMsg?.(m);
+                  if (ok) fx({ type: 'signing', clubId: o.clubId, label: o.kind === 'renewal' ? 'Extension signed' : o.kind === 'loan' ? 'On loan to' : o.kind === 'academy' ? 'Welcome to the academy' : 'Welcome to' });
+                }}>Sign</button>
                 {o.kind !== 'first' && !(o.kind === 'academy' && !c.academy) && <button className="btn-white btn-sm" onClick={() => act((x) => rejectOffer(x, o.uid))}>Reject</button>}
               </div>
               {!o.final && o.kind !== 'loan' && <div className="text-[10px] text-muted text-center">Negotiating can improve terms, but clubs may refuse or walk away.</div>}

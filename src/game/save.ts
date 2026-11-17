@@ -5,6 +5,9 @@ import { POSITION_MAP } from '../data/positions';
 import { playerGrade } from '../engines/awards';
 import { initStars, setSeasonTargets } from '../engines/stars';
 import { upgradeSave } from './migrate';
+import { statRaces } from '../engines/races';
+import { leagueRepFor } from '../engines/world';
+import { getCountry } from '../data/countries';
 import { kvGet, kvRemove, kvSet } from './storage';
 
 // v2 saves. Old (v1) saves are intentionally not migrated.
@@ -58,7 +61,13 @@ function parseSave(raw: string | null): Career | null {
     c.plan ??= { balance: 50 };
     c.asked ??= { loan: false, transfer: false };
     c.national ??= { debutAge: null, status: 'Not called up' };
-    try { return upgradeSave(c); } catch (e) { console.error('Save upgrade failed', e); return c; }
+    try { upgradeSave(c); } catch (e) { console.error('Save upgrade failed', e); }
+    // seasons started before the stat leaderboards existed get them now
+    const s = c.season;
+    if (s && s.rounds?.length && Array.isArray(s.races) && !s.races.some((r) => r.kind === 'stat')) {
+      try { s.races.push(...statRaces(s, s.table.map((r) => r.clubId), s.youth ? 60 : leagueRepFor(getCountry(s.country).leagueRep, s.division))); } catch (e) { console.error(e); }
+    }
+    return c;
   }, null);
 }
 

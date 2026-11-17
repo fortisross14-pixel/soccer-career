@@ -272,6 +272,8 @@ export interface Decision {
 
 export interface CardPlay { name: string; msg: string; skills: Partial<Record<SkillKey, number>> }
 
+export interface QuarterTally { matches: number; minutes: number; apps: number; ga: number; motm: number; cleanSheets: number }
+
 export interface MonthReport {
   year: number;
   month: number;
@@ -352,6 +354,8 @@ export interface Career {
   cardsThisMonth: number;
   monthCards?: CardPlay[];
   trustLog?: { label: string; delta: number }[];
+  /** running totals for the current calendar quarter (Jul-Sep, Oct-Dec, Jan-Mar, Apr-Jun); packs are awarded at its end */
+  qtr?: QuarterTally;
   lastTrust?: { start: number; end: number; items: { label: string; delta: number }[] };
   luck?: number;
   mods: CareerMods;

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { MonthReport, SkillKey } from '../../game/types';
+import { OppCrest } from '../Crest';
 import { useGame } from '../../game/store';
 import { SKILL_MAP } from '../../data/skills';
 import { PACKS } from '../../data/cards';
@@ -52,6 +53,7 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
   const topDeltas = Object.entries(deltas).filter(([, v]) => Math.abs(v as number) >= 0.1).sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number)).slice(0, 8);
   const packs = reports.flatMap((r) => r.packs);
   const coins = reports.flatMap((r) => r.coins ?? []);
+  const achievements = coins.filter((e) => e.milestone);
   const coinTotal = coins.reduce((s, e) => s + e.amount, 0);
   const income = reports.reduce((s, r) => s + r.income - r.costs, 0);
   const title = reports.length === 1 ? `${MONTHS_LONG[first.month]} ${calYear(first.year, first.month)}` : `${MONTHS_LONG[first.month]} – ${MONTHS_LONG[last.month]}`;
@@ -70,7 +72,7 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
     <Modal onClose={closeReports} wide>
       <div className="p-5 border-b-[3px] border-ink bg-sun flex items-end justify-between gap-3">
         <div>
-          <span className="tag">{reports.length > 1 ? `${reports.length} months` : 'Month review'}</span>
+          <span className="tag">{reports.length === 3 ? 'Quarter review' : reports.length > 1 ? `${reports.length} months` : 'Month review'}</span>
           <h2 className="font-display text-3xl sm:text-4xl uppercase mt-2 leading-none">{title}</h2>
         </div>
         <div className="text-right">
@@ -87,6 +89,30 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
           <Stat label="Avg rtg" value={avg} />
         </div>
 
+        {(achievements.length > 0 || packs.length > 0) && (
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className={`sticker p-3 ${achievements.length ? '!bg-sun -rotate-[.4deg]' : ''}`}>
+              <div className="eyebrow mb-2">🏅 Achievements</div>
+              {achievements.length === 0 ? <p className="text-sm text-muted font-semibold">None this time.</p> : (
+                <ul className="space-y-1.5">
+                  {achievements.map((e, i) => (
+                    <li key={i} className="flex items-center gap-2 bg-bone border-2 border-ink rounded-md px-2.5 py-1.5 text-sm font-extrabold">
+                      <span className="flex-1 min-w-0 truncate">★ {e.label}</span>
+                      {e.firstEver && <span className="tag !bg-red !text-white !text-[8px] !py-0">first ever</span>}
+                      <span className="stat-num text-xs flex items-center gap-1"><span className="coin">c</span>+{e.amount}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="sticker p-3">
+              <div className="eyebrow mb-2">🎁 Packs earned</div>
+              <div className="flex flex-wrap gap-1.5">{packs.length ? packs.map((pk) => <span key={pk.uid} className={`pill pack-${pk.tier} !text-[10px]`}>{PACKS[pk.tier].name.split(' ')[0]} · {pk.reason}</span>) : <span className="text-sm text-muted font-semibold">None</span>}</div>
+              {reports.every((r) => r.month % 3 !== 2) && <div className="text-[11px] text-muted font-semibold mt-2">Packs are handed out at the end of each quarter (Sep, Dec, Mar, Jun).</div>}
+            </div>
+          </div>
+        )}
+
         {fixtures.length > 0 && (
           <div>
             <div className="eyebrow mb-2">Your matches · tap for details</div>
@@ -94,7 +120,7 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
               {fixtures.map((f) => (
                 <button key={f.id} onClick={() => openMatch(f.id)} className="w-full sticker-flat flex items-center gap-3 px-3 py-2 text-sm text-left row-hover">
                   <CompBadge fx={f} />
-                  <span className="flex-1 truncate font-bold">{oppLabel(f)}</span>
+                  <OppCrest id={f.oppId} /><span className="flex-1 truncate font-bold">{oppLabel(f)}</span>
                   <span className="text-xs text-muted font-semibold hidden sm:inline">{involvementLine(f)}</span>
                   {f.report?.motm && <span className="tag tag-sun !text-[8px]">MOTM</span>}
                   <ResultPill fx={f} />
@@ -162,9 +188,9 @@ export default function MonthReportModal({ reports }: { reports: MonthReport[] }
             )}
           </div>
           <div>
-            <div className="eyebrow mb-2">Packs earned</div>
-            <div className="flex flex-wrap gap-1.5">{packs.length ? packs.map((pk) => <span key={pk.uid} className={`pill pack-${pk.tier} !text-[10px]`}>{PACKS[pk.tier].name.split(' ')[0]} · {pk.reason}</span>) : <span className="text-sm text-muted font-semibold">None</span>}</div>
-            <div className="text-xs text-muted font-bold mt-2">Net income {fmtMoney(income)}</div>
+            <div className="eyebrow mb-2">Money</div>
+            <div className="text-sm font-bold">Net income {fmtMoney(income)}</div>
+            {packs.length === 0 && achievements.length === 0 && <div className="text-[11px] text-muted font-semibold mt-2">Packs are handed out at the end of each quarter (Sep, Dec, Mar, Jun).</div>}
           </div>
           <div>
             <div className="eyebrow mb-2">Legacy coins</div>

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CoinEvent } from '../game/types';
 import { onFx, type FxEvent } from './fx';
+import Crest from './Crest';
+import { CLUB_MAP } from '../data/clubs';
+import { clubStyle } from '../data/crests';
 
 interface Part { x: number; y: number; vx: number; vy: number; g: number; s: number; c: string; life: number; rot: number; vr: number; kind: 'tape' | 'chip' }
 interface Sticker { id: number; text: string; cls: string; style: React.CSSProperties }
@@ -17,6 +20,7 @@ export default function FxLayer() {
   const running = useRef(false);
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [signing, setSigning] = useState<{ clubId: string; label: string; id: number } | null>(null);
 
   useEffect(() => {
     const cv = canvas.current!;
@@ -73,6 +77,13 @@ export default function FxLayer() {
         add.forEach((t, i) => setTimeout(() => setToasts((cur) => cur.filter((x) => x.id !== t.id)), 3200 + i * 250));
         return;
       }
+      if (e.type === 'signing') {
+        const id = ++seq;
+        setSigning({ clubId: e.clubId, label: e.label, id });
+        setTimeout(() => setSigning((cur) => (cur?.id === id ? null : cur)), 2600);
+        if (!reduce) tape(120);
+        return;
+      }
       if (reduce) return;
       if (e.type === 'tape') tape(e.n ?? 140);
       if (e.type === 'burst') burst(e.x, e.y, e.n ?? 24);
@@ -95,6 +106,20 @@ export default function FxLayer() {
   return (
     <>
       <canvas ref={canvas} className="fixed inset-0 w-full h-full pointer-events-none z-[90]" aria-hidden="true" />
+      {signing && CLUB_MAP[signing.clubId] && (() => {
+        const st = clubStyle(CLUB_MAP[signing.clubId].name);
+        return (
+          <div key={signing.id} className="fixed inset-0 z-[95] grid place-items-center pointer-events-none">
+            <div className="goal-sticker !static !translate-x-0 flex flex-col items-center gap-3 px-8 py-6 text-center" style={{ background: `linear-gradient(135deg, ${st.primary} 0 50%, ${st.secondary} 50% 100%)`, ['--r0' as string]: '-14deg', ['--r1' as string]: '-3deg' }}>
+              <Crest clubId={signing.clubId} size={110} />
+              <div className="bg-bone border-[3px] border-ink rounded-lg px-4 py-2">
+                <div className="text-[11px] font-black uppercase tracking-[.16em]">{signing.label}</div>
+                <div className="font-display text-2xl sm:text-4xl uppercase leading-none mt-1">{CLUB_MAP[signing.clubId].name}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {stickers.map((s) => <div key={s.id} className={`goal-sticker ${s.cls}`} style={s.style}>{s.text}</div>)}
       <div className="fixed right-3 top-20 z-[96] flex flex-col gap-2 items-end pointer-events-none" aria-live="polite">
         {toasts.map((t) => (

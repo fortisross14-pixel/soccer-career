@@ -6,7 +6,7 @@ import { earn, milestone, volumeMilestones, PER_EVENT } from './coins';
 import { buildYouthSeason, scorerTable, CONT_KO, CUP_ROUNDS, applyToTable, contKnockoutOpponent, cupOpponent, makeFixture, quickResult, tablePosition, buildSeason } from './calendar';
 import { simulateMatch, roleRank } from './match';
 import { monthlyGrowth } from './growth';
-import { addPack } from './cards';
+import { addPack, playsPerMonth } from './cards';
 import { displayOverall, playerOverall } from './overall';
 import { STAFF_PERK, staffMonthlyCost } from './perks';
 import { windowOffers, renewalOffer, academyWindowOffers } from './market';
@@ -214,6 +214,21 @@ function playFixture(c: Career, fx: Fixture, news: string[]) {
   if (fx.comp === 'national') news.push(...afterTournamentMatch(c, fx));
 }
 
+export const QUARTER_NAMES = ['Jul–Sep', 'Oct–Dec', 'Jan–Mar', 'Apr–Jun'];
+
+/** end-of-quarter rewards: training, minutes, Man of the Match awards and big numbers */
+function quarterPacks(c: Career, q: NonNullable<Career['qtr']>) {
+  const name = QUARTER_NAMES[Math.floor(c.month / 3)];
+  const p = c.player;
+  addPack(c, 'bronze', c.academy ? `Academy training · ${name}` : `Training · ${name}`);
+  if (q.matches >= 3 && q.minutes >= q.matches * 90 * 0.5) addPack(c, 'bronze', `Regular minutes · ${name}`);
+  if (q.motm >= 3) addPack(c, 'gold', `${q.motm}× Man of the Match · ${name}`);
+  else if (q.motm >= 1) addPack(c, 'silver', `${q.motm > 1 ? `${q.motm}× ` : ''}Man of the Match · ${name}`);
+  const defensive = p.position === 'GK' || p.position === 'CB' || p.position === 'FB';
+  if (q.ga >= 10 || (defensive && q.cleanSheets >= 7)) addPack(c, 'gold', `Huge quarter: ${defensive && q.ga < 10 ? `${q.cleanSheets} clean sheets` : `${q.ga} goal involvements`}`);
+  else if (q.ga >= 5 || (defensive && q.cleanSheets >= 4)) addPack(c, 'silver', `Big quarter: ${defensive && q.ga < 5 ? `${q.cleanSheets} clean sheets` : `${q.ga} goal involvements`}`);
+}
+
 /** Play every fixture of the current month and advance the calendar. */
 export function playMonth(c: Career): MonthReport {
   const blocker = canPlay(c);
@@ -281,11 +296,11 @@ export function playMonth(c: Career): MonthReport {
   const motms = mine.filter((f) => f.report!.motm).length;
   const cleanSheets = mine.filter((f) => f.report!.minutes >= 60 && f.oppGoals === 0).length;
 
-  // ---- rewards ----
-  if (c.month >= 1 && c.month <= 10 && (!c.academy || c.month % 3 === 0)) addPack(c, 'bronze', c.academy ? 'Academy training block' : `${MONTHS_LONG[c.month]} training`);
-  if (motms > 0) addPack(c, 'bronze', motms > 1 ? `${motms}× Man of the Match` : 'Man of the Match');
-  const defensive = p.position === 'GK' || p.position === 'CB' || p.position === 'FB';
-  if (ga >= 4 || (defensive && cleanSheets >= 3)) addPack(c, 'silver', `Big month: ${defensive && ga < 4 ? `${cleanSheets} clean sheets` : `${ga} goal involvements`}`);
+  // ---- rewards: packs come per quarter (Jul-Sep, Oct-Dec, Jan-Mar, Apr-Jun) ----
+  const q = (c.qtr ??= { matches: 0, minutes: 0, apps: 0, ga: 0, motm: 0, cleanSheets: 0 });
+  q.matches += clubMatches.length; q.minutes += minutes; q.apps += mine.length;
+  q.ga += ga; q.motm += motms; q.cleanSheets += cleanSheets;
+  if (c.month % 3 === 2) { quarterPacks(c, q); c.qtr = { matches: 0, minutes: 0, apps: 0, ga: 0, motm: 0, cleanSheets: 0 }; }
   const leagueMine = mine.filter((f) => f.comp === 'league');
   if (leagueMine.length >= 3 && avg >= 7.6) {
     addPack(c, 'gold', 'Player of the Month');
@@ -311,7 +326,8 @@ export function playMonth(c: Career): MonthReport {
   const ovrAfter = displayOverall(p);
   c.peakOvr = Math.max(c.peakOvr, playerOverall(p));
   volumeMilestones(c, playerOverall(p));
-  c.cardsThisMonth = 0;
+  // card plays: each month gives back playsPerMonth, and up to a quarter's worth can be saved up
+  c.cardsThisMonth = Math.max(0, c.cardsThisMonth - playsPerMonth(c));
 
   const packs = c.packs.filter((x) => !packsBefore.has(x.uid));
   const report: MonthReport = { year: c.year, month: c.month, fixtures: played, skillDeltas: deltas, ovrBefore, ovrAfter, packs, news, income, costs, coins: [], cardsPlayed, luck: c.luck };

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { OppCrest } from '../Crest';
 import { useGame } from '../../game/store';
 import type { Fixture } from '../../game/types';
 import { MONTHS_LONG, calYear, dayToMonth } from '../../engines/util';
@@ -40,6 +41,7 @@ export default function Fixtures() {
               <button key={f.id} disabled={!f.played} onClick={() => openMatch(f.id)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left row-hover disabled:opacity-60 disabled:cursor-default">
                 <span className="stat-num text-xs text-muted w-6">{(f.day % 30) + 1}</span>
                 <CompBadge fx={f} />
+                <OppCrest id={f.oppId} />
                 <span className="flex-1 min-w-0">
                   <span className="truncate block">{oppLabel(f)}</span>
                   <span className="text-[11px] text-muted truncate block">{f.compName} · {f.stage}</span>

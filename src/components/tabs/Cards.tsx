@@ -3,7 +3,7 @@ import { useGame } from '../../game/store';
 import type { CardDef, CardKind, PackTier } from '../../game/types';
 import { CARD_MAP, MAX_STAFF, MAX_TRAITS, PACKS, RARITY_ORDER } from '../../data/cards';
 import { TRAIT_MAP } from '../../data/traits';
-import { buyPack, cardBlocker, openPack, packPrice, releaseStaff, sellCard, playCard, SELL_VALUE, handLimit, boostLimit, playsPerMonth } from '../../engines/cards';
+import { buyPack, cardBlocker, openPack, packPrice, releaseStaff, sellCard, sellCards, playCard, SELL_VALUE, handLimit, boostLimit, playsPerMonth, playsLeft, isDeadCard, mergePacks, MERGE_COST, MERGE_INTO } from '../../engines/cards';
 import { burstFrom } from '../fx';
 import { fmtMoney } from '../../engines/util';
 import { EmptyState, GameCard, Modal, SectionTitle, SubTabs } from '../ui';
@@ -20,6 +20,8 @@ export default function Cards() {
   const [msg, setMsg] = useState<string | null>(null);
   const [tearing, setTearing] = useState<string | null>(null);
   const [view, setView] = useState<'hand' | 'shop'>('hand');
+  const [sellMode, setSellMode] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   if (!career) return null;
   const c = career;
   const p = c.player;
@@ -51,7 +53,16 @@ export default function Cards() {
       <div className="space-y-5">
       <section className="panel p-5">
         <SectionTitle kicker="Unopened" title={`Packs (${c.packs.length})`} right={c.packs.length > 1 ? <button className="btn-white btn-sm text-xs" onClick={() => open(c.packs[0].uid)}>Open next</button> : undefined} />
-        {c.packs.length === 0 ? <EmptyState>Earn packs every month, for Man of the Match displays, big months, awards and trophies, or buy them below.</EmptyState> : (
+        {(Object.keys(MERGE_INTO) as PackTier[]).some((t) => c.packs.filter((x) => x.tier === t).length >= MERGE_COST) && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {(Object.keys(MERGE_INTO) as PackTier[]).filter((t) => c.packs.filter((x) => x.tier === t).length >= MERGE_COST).map((t) => (
+              <button key={t} className="btn-sun btn-sm text-xs" onClick={() => { const e = act((x) => mergePacks(x, t)); setMsg(e ?? `Merged ${MERGE_COST} ${t} packs into a ${MERGE_INTO[t]} pack.`); }}>
+                ⚗ Merge {MERGE_COST} {PACKS[t].name.split(' ')[0]} → 1 {PACKS[MERGE_INTO[t]!].name.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+        )}
+        {c.packs.length === 0 ? <EmptyState>Packs arrive at the end of every quarter: training, regular minutes, Man of the Match displays and big numbers, plus awards and trophies. Five of a kind merge into the next tier.</EmptyState> : (
           <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 gap-3">
             {c.packs.map((pk) => (
               <button key={pk.uid} onClick={() => open(pk.uid)} className={`pack pack-${pk.tier} text-left ${tearing === pk.uid ? 'pack-shake' : ''}`}>
@@ -72,14 +83,40 @@ export default function Cards() {
       </div>
 
       <section className="panel p-5">
-        <SectionTitle kicker={`${c.cards.length} / ${handLimit(c)} · ${Math.max(0, playsPerMonth(c) - c.cardsThisMonth)} plays left this month`} title="Your hand" />
+        <SectionTitle kicker={`${c.cards.length} / ${handLimit(c)} · ${playsLeft(c)} plays left (+${playsPerMonth(c)} each month)`} title="Your hand" right={c.cards.length > 0 ? <button className={`btn-sm text-xs ${sellMode ? 'btn-red' : 'btn-white'}`} onClick={() => { setSellMode(!sellMode); setPicked(new Set()); }}>{sellMode ? 'Done' : '💰 Sell cards'}</button> : undefined} />
+        {sellMode && (() => {
+          const pick = (pred: (d: CardDef) => boolean) => setPicked(new Set(c.cards.filter((x) => pred(CARD_MAP[x.defId])).map((x) => x.uid)));
+          const seen = new Set<string>();
+          const dupes = c.cards.filter((x) => { if (seen.has(x.defId)) return true; seen.add(x.defId); return false; }).map((x) => x.uid);
+          const value = [...picked].reduce((a, u) => a + SELL_VALUE[CARD_MAP[c.cards.find((x) => x.uid === u)?.defId ?? '']?.rarity ?? 'common'], 0);
+          return (
+            <div className="sticker !bg-sun p-3 mb-4">
+              <div className="text-xs font-extrabold mb-2">Tap cards to select them, or pick a group:</div>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <button className="chip" onClick={() => pick((d) => d.rarity === 'common')}>All commons</button>
+                <button className="chip" onClick={() => setPicked(new Set(dupes))}>Duplicates</button>
+                <button className="chip" onClick={() => pick((d) => isDeadCard(c, d))}>Can't be used</button>
+                <button className="chip" onClick={() => setPicked(new Set())}>Clear</button>
+              </div>
+              <button className="btn-red w-full" disabled={!picked.size} onClick={() => { const n = picked.size; const v = act((x) => sellCards(x, [...picked])); setMsg(`Sold ${n} card${n > 1 ? 's' : ''} for ${fmtMoney(v)}.`); setPicked(new Set()); }}>
+                Sell {picked.size} card{picked.size === 1 ? '' : 's'} · {fmtMoney(value)}
+              </button>
+            </div>
+          );
+        })()}
         <div className="flex flex-wrap gap-1.5 mb-4">
           {FILTERS.map((f) => <button key={f.id} className={`chip ${filter === f.id ? 'chip-on' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>)}
         </div>
         {hand.length === 0 ? <EmptyState>No cards here. Open some packs.</EmptyState> : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {hand.map(({ inst, def }) => (
-              <GameCard key={inst.uid} def={def} compact isNew={inst.isNew} onClick={() => { setSelected(inst.uid); setMsg(null); act((x) => { const k = x.cards.find((y) => y.uid === inst.uid); if (k) k.isNew = false; }); }} />
+              <div key={inst.uid} className={`relative rounded-xl ${sellMode && picked.has(inst.uid) ? 'ring-4 ring-red ring-offset-2' : ''}`}>
+                <GameCard def={def} compact isNew={inst.isNew} onClick={() => {
+                  if (sellMode) { const n = new Set(picked); if (n.has(inst.uid)) n.delete(inst.uid); else n.add(inst.uid); setPicked(n); return; }
+                  setSelected(inst.uid); setMsg(null); act((x) => { const k = x.cards.find((y) => y.uid === inst.uid); if (k) k.isNew = false; });
+                }} />
+                {sellMode && <span className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full border-2 border-ink grid place-items-center text-xs font-black pointer-events-none ${picked.has(inst.uid) ? 'bg-red text-white' : 'bg-bone'}`}>{picked.has(inst.uid) ? '✓' : ''}</span>}
+              </div>
             ))}
           </div>
         )}
@@ -146,7 +183,7 @@ function CardModal({ def, onClose, onUse, onSell, blocker }: { def: CardDef; onC
           <div className="eyebrow mb-2">{def.kind}</div>
           <h3 className="font-display text-3xl uppercase">{def.name}</h3>
           <p className="text-sm text-muted mt-2">{def.desc}</p>
-          {def.kind === 'skill' && <p className="text-[11px] text-muted mt-3">Skill cards can't push an attribute past its ceiling. After 30 they are 25% weaker, and once you pass your prime they're 50% weaker.</p>}
+          {def.kind === 'skill' && <p className="text-[11px] text-muted mt-3">Skill cards can push any attribute, as long as your overall stays within your POT. After 30 they are 25% weaker, and once you pass your prime they're 50% weaker.</p>}
           {def.kind === 'staff' && <p className="text-[11px] text-muted mt-3">Costs {fmtMoney(def.monthlyCost ?? 0)} every month while employed.</p>}
           {blocker && <p className="text-sm text-[#c65d00] mt-3">{blocker}</p>}
           <div className="flex gap-2 mt-5">

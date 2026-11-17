@@ -42,6 +42,9 @@ function cardWeight(c: Career, def: CardDef): number {
 export function handLimit(c: Career) { return MAX_HAND + c.mods.handBonus; }
 export function boostLimit(c: Career) { return MAX_BOOSTS + c.mods.extraBoosts; }
 export function playsPerMonth(c: Career) { return 2 + c.mods.extraPlays; }
+/** card plays that can be saved up: a quarter's worth */
+export function playCap(c: Career) { return playsPerMonth(c) * 3; }
+export function playsLeft(c: Career) { return Math.max(0, playCap(c) - c.cardsThisMonth); }
 
 function rollRarity(tier: PackTier, luck: number): Rarity {
   const odds = PACKS[tier].odds;
@@ -111,11 +114,42 @@ export function sellCard(c: Career, cardUid: string): number {
   return v;
 }
 
+export function sellCards(c: Career, uids: string[]): number {
+  let total = 0;
+  for (const u of uids) total += sellCard(c, u);
+  return total;
+}
+
+/** cards that can never be played in this career (too old, trait owned, POT maxed...) */
+export function isDeadCard(c: Career, def: CardDef): boolean {
+  const p = c.player;
+  if (def.maxAge && p.age > def.maxAge) return true;
+  if (def.kind === 'trait' && p.traits.includes(def.traitId!)) return true;
+  if (def.kind === 'potential' && p.potential >= 1) return true;
+  if (def.kind === 'staff' && p.staff.includes(def.id)) return true;
+  return false;
+}
+
+export const MERGE_COST = 5;
+export const MERGE_INTO: Partial<Record<PackTier, PackTier>> = { bronze: 'silver', silver: 'gold', gold: 'elite' };
+
+/** trade 5 packs of one tier for 1 of the next tier up */
+export function mergePacks(c: Career, tier: PackTier): string | null {
+  const into = MERGE_INTO[tier];
+  if (!into) return 'Elite packs are the top tier.';
+  const same = c.packs.filter((x) => x.tier === tier);
+  if (same.length < MERGE_COST) return `You need ${MERGE_COST} ${tier} packs.`;
+  const used = new Set(same.slice(0, MERGE_COST).map((x) => x.uid));
+  c.packs = c.packs.filter((x) => !used.has(x.uid));
+  addPack(c, into, `Merged from ${MERGE_COST} ${tier}`);
+  return null;
+}
+
 /** can this card be used right now? returns reason if not */
 export function cardBlocker(c: Career, def: CardDef): string | null {
   const p = c.player;
   if (def.maxAge && p.age > def.maxAge) return `Only usable until age ${def.maxAge}.`;
-  if (c.cardsThisMonth >= playsPerMonth(c)) return `You've played ${playsPerMonth(c)} cards this month. Play the month to refresh.`;
+  if (playsLeft(c) <= 0) return `No card plays left. Each month gives you ${playsPerMonth(c)} more.`;
   if (def.kind === 'boost' && p.boosts.length >= boostLimit(c)) return `All ${boostLimit(c)} boost slots are active.`;
   if (def.kind === 'staff' && p.staff.includes(def.id)) return 'Already on your staff.';
   if (def.kind === 'staff' && p.staff.length >= MAX_STAFF) return `Staff full (${MAX_STAFF}). Release someone first.`;

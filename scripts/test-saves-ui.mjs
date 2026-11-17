@@ -49,7 +49,9 @@ for (const f of files) {
       const subs = await page.$$eval('div.overflow-x-auto.mb-5 > button', (bs) => bs.length);
       for (let s = 0; s < subs; s++) await step(`${tabs[t]} sub ${s}`, (i) => document.querySelectorAll('div.overflow-x-auto.mb-5 > button')[i]?.click(), s);
     }
-    await step('play month', () => [...document.querySelectorAll('button')].find((b) => /^Play [A-Z][a-z]+ →$/.test(b.textContent?.trim() ?? '') && !b.disabled)?.click());
+    const clicked = await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => /^Play .+→$/.test(x.textContent?.trim() ?? '')); if (b && !b.disabled) { b.click(); return 'played'; } return b ? 'blocked' : 'missing'; });
+    if (clicked === 'missing') errors.push('play button not found');
+    if (await page.getByText('Something broke on this screen').count()) errors.push('crash screen after playing');
     await page.waitForTimeout(300);
     // the save must survive a reload (and have moved out of localStorage into IndexedDB)
     await page.reload();
@@ -77,7 +79,7 @@ for (const f of files) {
   await page.getByText('Saved careers').waitFor({ timeout: 5000 });
   await page.locator('button', { hasText: 'Kick off career' }).click();
   await page.waitForTimeout(300);
-  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /^Play [A-Z][a-z]+ →$/.test(b.textContent?.trim() ?? ''))?.click());
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /^Play .+→$/.test(b.textContent?.trim() ?? ''))?.click());
   await page.waitForTimeout(300);
   if (await page.getByText(/Save failed|storage is full/i).count()) errors.push('save failed with full localStorage');
   await page.reload();

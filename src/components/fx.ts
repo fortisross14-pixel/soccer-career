@@ -7,7 +7,8 @@ export type FxEvent =
   | { type: 'goal'; text: string; sub?: string }
   | { type: 'burst'; x: number; y: number; n?: number }
   | { type: 'tape'; n?: number }
-  | { type: 'stamp'; text: string; tone?: 'red' | 'sun' | 'white' };
+  | { type: 'stamp'; text: string; tone?: 'red' | 'sun' | 'white' }
+  | { type: 'signing'; clubId: string; label: string };
 
 type Listener = (e: FxEvent) => void;
 const listeners = new Set<Listener>();

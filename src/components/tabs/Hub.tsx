@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { OppCrest } from '../Crest';
 import { useGame } from '../../game/store';
 import type { TabId } from '../Game';
 import { FOCUSES, balanceEffects, balanceLabel } from '../../data/training';
@@ -6,10 +7,11 @@ import { POSITION_MAP } from '../../data/positions';
 import { CARD_MAP, RARITY_ORDER } from '../../data/cards';
 import { setPlan } from '../../engines/career';
 import { currentRole, injuryRisk, squadLevels, LINE_LABEL } from '../../engines/match';
-import { cardBlocker, playCard, playsPerMonth } from '../../engines/cards';
+import { cardBlocker, playCard, playCap, playsLeft, playsPerMonth } from '../../engines/cards';
 import { scorerTable, sortedTable, tablePosition } from '../../engines/calendar';
 import { teamName, youthBand } from '../../engines/teams';
 import { isWindow } from '../../engines/month';
+import { growthFactors } from '../../engines/growth';
 import { ordinal } from '../../engines/awards';
 import { ballonRace } from '../../engines/stars';
 import { leagueRepFor } from '../../engines/world';
@@ -64,7 +66,7 @@ export default function Hub({ goTo }: { goTo: (t: TabId) => void }) {
                 <div key={f.id} className="sticker-flat flex items-center gap-3 px-3 py-2 text-sm">
                   <span className="stat-num text-xs w-14 shrink-0">{fmtDay(f.day, c.year).split(' ').slice(0, 2).join(' ')}</span>
                   <CompBadge fx={f} />
-                  <span className="flex-1 truncate font-bold">{oppLabel(f)}</span>
+                  <OppCrest id={f.oppId} /><span className="flex-1 truncate font-bold">{oppLabel(f)}</span>
                   <span className="text-xs text-muted font-semibold hidden sm:inline">{f.stage}</span>
                 </div>
               ))}
@@ -79,7 +81,7 @@ export default function Hub({ goTo }: { goTo: (t: TabId) => void }) {
               {recent.map((f) => (
                 <button key={f.id} onClick={() => openMatch(f.id)} className="w-full sticker-flat flex items-center gap-3 px-3 py-2 text-sm text-left row-hover">
                   <CompBadge fx={f} />
-                  <span className="flex-1 truncate font-bold">{oppLabel(f)}</span>
+                  <OppCrest id={f.oppId} /><span className="flex-1 truncate font-bold">{oppLabel(f)}</span>
                   <span className="text-xs text-muted font-semibold hidden sm:inline">{involvementLine(f)}</span>
                   {f.report?.motm && <span className="tag tag-sun !text-[8px]">MOTM</span>}
                   <ResultPill fx={f} />
@@ -158,12 +160,11 @@ function PlanPanel() {
   };
   const e = balanceEffects(bal);
   const risk = injuryRisk(p, 90, e.injury * (1 - c.mods.injuryCut)) * 100;
-  const plays = playsPerMonth(c);
   const quick = [...c.cards].sort((a, b) => RARITY_ORDER.indexOf(CARD_MAP[b.defId].rarity) - RARITY_ORDER.indexOf(CARD_MAP[a.defId].rarity)).slice(0, 4);
 
   return (
     <section className="panel p-5">
-      <SectionTitle title={`${MONTHS_LONG[c.month]} plan`} kicker={balanceLabel(bal)} right={<span className="stat-num text-xs font-bold sticker-flat px-2 py-1 shrink-0">Cards {c.cardsThisMonth}/{plays}</span>} />
+      <SectionTitle title="Your plan" kicker={balanceLabel(bal)} right={<span className="stat-num text-xs font-bold sticker-flat px-2 py-1 shrink-0" title={`+${playsPerMonth(c)} plays every month, save up to ${playCap(c)}`}>Card plays {playsLeft(c)}/{playCap(c)}</span>} />
 
       <div className="flex justify-between text-sm font-extrabold mb-1">
         <span>Training ground<span className="block text-[11px] text-muted font-semibold">grow attributes</span></span>
@@ -178,6 +179,8 @@ function PlanPanel() {
         <Effect label="Injury /90" value={`${risk.toFixed(1)}%`} good={risk < 1.3} />
       </div>
 
+      <ClubGrowth />
+
       <p className="text-[11px] text-muted font-semibold mt-2">Ranges include luck: most months land in the middle, but a hot streak or a flat month can happen whatever you choose.</p>
 
       <div className="mt-5">
@@ -191,7 +194,7 @@ function PlanPanel() {
 
       <div className="mt-5">
         <div className="flex flex-wrap justify-between items-end gap-2 mb-2">
-          <div className="text-xs font-extrabold uppercase tracking-wider">Play a card · {Math.max(0, plays - c.cardsThisMonth)} left this month</div>
+          <div className="text-xs font-extrabold uppercase tracking-wider">Play a card · {playsLeft(c)} plays left (+{playsPerMonth(c)} each month)</div>
           {msg && <span className="text-[11px] font-bold">{msg}</span>}
         </div>
         {quick.length === 0 ? <p className="text-sm text-muted font-semibold">No cards in hand. Open packs in the Cards tab.</p> : (
@@ -296,3 +299,27 @@ function TrustNote() {
     </div>
   );
 }
+
+/** how the club and playing time shape growth: bigger clubs coach better, minutes matter, both together compound */
+function ClubGrowth() {
+  const { career } = useGame();
+  const c = career!;
+  const s = c.season;
+  const clubFx = s ? s.fixtures.filter((f) => f.played && f.comp !== 'national') : [];
+  const mins = clubFx.reduce((a, f) => a + (f.report?.minutes ?? 0), 0);
+  const share = clubFx.length ? mins / (clubFx.length * 90 * 0.75) : null;
+  const g = growthFactors(c, share);
+  const pct = (x: number) => `${x >= 1 ? '+' : ''}${Math.round((x - 1) * 100)}%`;
+  return (
+    <div className="sticker-flat px-3 py-2 mt-3 text-[12px] font-semibold">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-extrabold">Development speed <span className={`stat-num ${g.total >= 1 ? 'text-[#178a4c]' : 'text-red'}`}>×{g.total.toFixed(2)}</span></span>
+        <span>Coaching {pct(g.coaching)}</span>
+        <span>Minutes {pct(g.minutes)}{share === null ? ' (no games yet)' : ` (${Math.round(Math.min(1, share * 0.75) * 100)}% played)`}</span>
+        {g.combo > 1.01 && <span className="text-[#178a4c] font-extrabold">Top club + regular {pct(g.combo)}</span>}
+      </div>
+      <div className="text-[11px] text-muted mt-0.5">Bigger clubs coach better but minutes are harder to earn. Get both and you grow fastest.</div>
+    </div>
+  );
+}
+

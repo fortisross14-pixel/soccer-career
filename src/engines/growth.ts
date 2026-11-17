@@ -11,6 +11,22 @@ import { clamp, rng } from './util';
 const NATURAL = 0.62;
 
 /**
+ * How the club shapes development: better coaching at bigger clubs, and
+ * playing time. Both together compound: a regular at an elite club grows
+ * fastest. `share` is the fraction of available club minutes played.
+ */
+export function growthFactors(c: Career, share: number | null): { coaching: number; minutes: number; combo: number; total: number; clubR: number } {
+  const p = c.player;
+  const clubR = c.academy ? CLUB_MAP[c.academy.clubId]?.rating ?? 60 : p.contract ? CLUB_MAP[p.contract.clubId]?.rating ?? 65 : 60;
+  const q = clamp((clubR - 58) / 34, 0, 1);
+  const coaching = 0.75 + q * 0.6;                        // 0.75 small club … 1.35 elite
+  const sh = share === null ? 0.5 : clamp(share, 0, 1);
+  const minutes = 0.7 + 0.5 * sh;                          // 0.70 unused … 1.20 ever-present
+  const combo = 1 + 0.3 * q * clamp((sh - 0.4) / 0.6, 0, 1); // up to +30% for a regular at the very top
+  return { coaching, minutes, combo, total: coaching * minutes * combo, clubR };
+}
+
+/**
  * One month of natural development. Growth closes part of the gap to each
  * skill's ceiling; minutes, club coaching, focus and intensity scale it.
  * After the prime, skills decline — physical first, mental last.
@@ -20,9 +36,7 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
   const pos = POSITION_MAP[p.position];
   const focus = FOCUSES.find((f) => f.id === c.focus) ?? FOCUSES[0];
   const bal = balanceEffects(c.plan.balance);
-  const clubR = c.academy ? CLUB_MAP[c.academy.clubId]?.rating ?? 60 : p.contract ? CLUB_MAP[p.contract.clubId]?.rating ?? 65 : 60;
-  const coaching = clamp((clubR - 58) / 34, 0, 1);
-  const minutesF = available > 0 ? 0.75 + 0.45 * clamp(minutes / (available * 90 * 0.75), 0, 1) : 0.85;
+  const club = growthFactors(c, available > 0 ? minutes / (available * 90 * 0.75) : null);
   const injured = p.injury && p.injury.year === c.year && p.injury.untilDay > c.month * 30 + 15;
   const deltas: Partial<Record<SkillKey, number>> = {};
 
@@ -41,8 +55,7 @@ export function monthlyGrowth(c: Career, minutes: number, available: number): Pa
       if (room > 0.05) {
         let frac = p.age < 19 ? 0.2 : p.age < 21 ? 0.18 : p.age < p.peakStart ? 0.15 : 0.05;
         frac *= 0.6 + relevance * 0.5;
-        frac *= 0.8 + coaching * 0.4;
-        frac *= minutesF;
+        frac *= club.total;
         frac *= bal.growth * (1 + (c.luck ?? 0) * 0.3) * (1 + STAFF_PERK(p, 'growth')) * (p.age <= 21 ? 1 + c.mods.youthGrowth : 1);
         frac *= 0.9 + p.morale / 500;
         if (def.ageCurve === 'mental') frac *= 1.15;

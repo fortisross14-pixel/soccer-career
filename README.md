@@ -18,7 +18,9 @@ npm run sim [n]    # headless balance test (auto-plays n careers, default 200)
 
 ## The loop
 
-Each turn is one month (July → June). Pressing **Play {month}**:
+The calendar runs month by month (July → June), and a turn is normally a quarter
+(Jul–Sep, Oct–Dec, Jan–Mar, Apr–Jun). **Play Oct–Dec** plays to the end of the quarter, **1 month** plays a
+single month and **Season** plays through to July. Every month:
 
 1. Plays every fixture that month in date order (league rounds, domestic cup,
    continental competition, international breaks, summer tournaments). The other
@@ -27,15 +29,18 @@ Each turn is one month (July → June). Pressing **Play {month}**:
    role, form, fitness and manager trust; then a match sim with goals, assists, a rating,
    position-specific stats, Man of the Match, injuries and a minute-by-minute timeline.
 3. Monthly development: attributes grow toward per-skill ceilings set by Potential,
-   scaled by minutes, club coaching, training focus and intensity. After your prime they decline.
-4. Rewards: a monthly training pack, plus packs for MOTM, big months, Player of the
-   Month, awards, trophies and milestones.
+   scaled by training focus and intensity and by the club (`growthFactors` in `engines/growth.ts`):
+   bigger clubs coach better (×0.75 to ×1.35), minutes matter (×0.7 to ×1.2), and a regular at a top club
+   gets up to +30% on top. After your prime they decline.
+4. Rewards come per quarter: a training pack, a bronze for regular minutes, silver/gold for Man of the
+   Match displays and big quarters, plus Player of the Month, awards, trophies and milestones as they happen.
+   Five packs of a tier merge into one of the next tier. Card plays build up at 2 a month (up to 6).
 5. Wages, staff costs, reputation, morale and trust update. May closes the league
    season (titles, awards, continental qualification). June hosts the World Cup or
    continental tournament, then the Ballon d'Or and the season rollover.
 
-**Sim to next event** plays months until something needs you: a decision, a transfer
-window, the season ending, or a pile of unopened packs.
+Quarter and month turns stop early for a decision or a transfer window with offers; a season sim only stops
+for decisions and runs to the summer window.
 
 ## Systems
 
@@ -45,7 +50,7 @@ window, the season ending, or a pile of unopened packs.
 | Match engine | `engines/match.ts` | Poisson goals from team ratings + your influence; per-position goal/assist shares; ratings, stats, timeline |
 | Month orchestration | `engines/month.ts` | `beginMonth` (windows, call-ups, decisions) / `playMonth` / season rollover |
 | Growth | `engines/growth.ts` | ~60% of growth is natural; the rest comes from cards |
-| Cards & packs | `engines/cards.ts`, `data/cards.ts` | Training (permanent), boosts (N matches), recovery, potential, traits, staff (monthly cost). Skill cards stop at your ceilings and weaken with age |
+| Cards & packs | `engines/cards.ts`, `data/cards.ts` | Training (permanent), boosts (N matches), recovery, potential, traits, staff (monthly cost). Skill cards are capped by POT (your overall) and weaken with age. Bulk selling and pack merging in the Cards tab |
 | Market | `engines/market.ts` | July/January windows, renewals when ≤1 year left, loans for young fringe players, negotiate wage/role/years (clubs may refuse or walk away), promised roles |
 | Decisions | `engines/decisions.ts` | Contextual events with trade-offs (bench frustration, press, rehab, sponsors, etc.) and retirement |
 | National team | `engines/national.ts` | Call-ups per break; group + knockout summer tournaments |
